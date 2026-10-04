@@ -39,69 +39,80 @@ import androidx.compose.ui.unit.sp
 import kotlin.math.abs
 import kotlin.math.roundToInt
 import org.siamdev.zappos.LocalSettingVM
-import org.siamdev.zappos.data.source.local.FontItem
-import org.siamdev.zappos.data.source.local.ThemeItem
+import org.siamdev.zappos.data.source.local.model.FontItem
+import org.siamdev.zappos.data.source.local.model.ThemeItem
 import org.siamdev.zappos.theme.MapLikeColors
 import org.siamdev.zappos.theme.YellowPrimary
 import org.siamdev.zappos.theme.colorFromHex
 import org.siamdev.zappos.theme.toHex
 import org.siamdev.zappos.ui.components.common.WorkspaceHeader
+import org.siamdev.zappos.ui.components.gesture.swipe
 
 private val AllAccentColors: List<Color> = listOf(YellowPrimary) + MapLikeColors
 
 @Composable
 fun AppearanceSettingScreen(onNavigateBack: () -> Unit = {}) {
-    val viewModel = LocalSettingVM.current
-    val themes by viewModel.themes.collectAsState()
-    val activeTheme by viewModel.activeTheme.collectAsState()
-    val fonts by viewModel.fonts.collectAsState()
-    val activeFont by viewModel.activeFont.collectAsState()
-    val accentColorHex by viewModel.accentColor.collectAsState()
-    val isLoading by viewModel.isLoading.collectAsState()
-
-    val activeAccentColor = accentColorHex?.let { colorFromHex(it) } ?: YellowPrimary
-
     Column(
         modifier =
             Modifier.fillMaxSize()
                 .background(MaterialTheme.colorScheme.background)
                 .windowInsetsPadding(WindowInsets.systemBars)
+                .swipe(onSwipeRight = onNavigateBack)
     ) {
-        WorkspaceHeader(title = "Appearance", onNavigateBack = onNavigateBack)
+        WorkspaceHeader(
+            title = "Appearance",
+            subtitle = "Settings · appearance",
+            onNavigateBack = onNavigateBack
+        )
+        AppearanceSettingContent(modifier = Modifier.weight(1f))
+    }
+}
 
-        if (isLoading) {
-            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
-            }
-            return@Column
+/** Appearance settings body without header, reused by the Settings list/detail screen. */
+@Composable
+internal fun AppearanceSettingContent(modifier: Modifier = Modifier) {
+    val setting = LocalSettingVM.current
+    val themes = setting.themes
+    val activeTheme = setting.activeTheme
+    val fonts = setting.fonts
+    val activeFont = setting.activeFont
+    val accentColorHex = setting.accentColorHex
+    val isLoading = setting.isLoading
+
+    val activeAccentColor = accentColorHex?.let { colorFromHex(it) } ?: YellowPrimary
+
+    if (isLoading) {
+        Box(modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
         }
+        return
+    }
 
-        BoxWithConstraints(modifier = Modifier.weight(1f)) {
-            if (maxWidth >= 600.dp) {
-                DesktopSettingsLayout(
-                    themes = themes, activeTheme = activeTheme,
-                    fonts = fonts, activeFont = activeFont,
-                    activeAccentColor = activeAccentColor,
-                    onSelectTheme = { viewModel.selectTheme(it) },
-                    onSelectFont = { viewModel.selectFont(it) },
-                    onSelectColor = { viewModel.selectAccentColor(it.toHex()) }
-                )
-            } else {
-                LazyColumn(
-                    modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(horizontal = 20.dp, vertical = 16.dp),
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    item {
-                        SettingsCard(
-                            themes = themes, activeTheme = activeTheme,
-                            fonts = fonts, activeFont = activeFont,
-                            activeAccentColor = activeAccentColor,
-                            onSelectTheme = { viewModel.selectTheme(it) },
-                            onSelectFont = { viewModel.selectFont(it) },
-                            onSelectColor = { viewModel.selectAccentColor(it.toHex()) }
-                        )
-                    }
+    BoxWithConstraints(modifier = modifier.fillMaxSize()) {
+        if (maxWidth >= 600.dp) {
+            DesktopSettingsLayout(
+                themes = themes, activeTheme = activeTheme,
+                fonts = fonts, activeFont = activeFont,
+                activeAccentColor = activeAccentColor,
+                onSelectTheme = { setting.selectTheme(it) },
+                onSelectFont = { setting.selectFont(it) },
+                onSelectColor = { setting.selectAccentColor(it.toHex()) }
+            )
+        } else {
+            LazyColumn(
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(horizontal = 20.dp, vertical = 16.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                item {
+                    SettingsCard(
+                        themes = themes, activeTheme = activeTheme,
+                        fonts = fonts, activeFont = activeFont,
+                        activeAccentColor = activeAccentColor,
+                        onSelectTheme = { setting.selectTheme(it) },
+                        onSelectFont = { setting.selectFont(it) },
+                        onSelectColor = { setting.selectAccentColor(it.toHex()) }
+                    )
                 }
             }
         }
@@ -193,7 +204,11 @@ private fun DesktopSettingsLayout(
                 .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(16.dp))
         ) {
             SettingSection(label = "THEME") {
-                ThemeSegmentedControl(themes = themes, activeTheme = activeTheme, onSelect = onSelectTheme)
+                ThemeSegmentedControl(
+                    themes = themes,
+                    activeTheme = activeTheme,
+                    onSelect = onSelectTheme
+                )
             }
             SectionDivider()
             SettingSection(label = "FONT SIZE") {

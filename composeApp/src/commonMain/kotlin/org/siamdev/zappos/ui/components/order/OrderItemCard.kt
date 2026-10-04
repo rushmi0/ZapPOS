@@ -38,6 +38,7 @@ import org.siamdev.zappos.LocalSettingVM
 import org.siamdev.zappos.ui.components.common.PrimaryAmt
 import org.siamdev.zappos.ui.components.common.SecondaryAmt
 import org.siamdev.zappos.ui.screens.sale.MenuItem
+import org.siamdev.zappos.ui.screens.setting.SettingSurfaceImpl
 import org.siamdev.zappos.ui.screens.setting.SettingViewModel
 
 @Composable
@@ -61,7 +62,8 @@ fun OrderItemCard(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 6.dp),
+            .padding(vertical = 6.dp)
+            .padding(start = 5.dp, end = 5.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Column(modifier = Modifier.weight(1f)) {
@@ -110,7 +112,10 @@ fun OrderItemCard(
                 BasicTextField(
                     value = editText,
                     onValueChange = { new ->
-                        val filtered = new.text.filter { c -> c.isDigit() }.take(4)
+                        var filtered = new.text.filter { c -> c.isDigit() }.take(4)
+                        if (filtered.length > 1 && filtered.startsWith("0")) {
+                            filtered = filtered.dropWhile { it == '0' }.ifEmpty { "0" }
+                        }
                         editText = new.copy(
                             text = filtered,
                             selection = TextRange(minOf(new.selection.start, filtered.length))
@@ -138,9 +143,11 @@ fun OrderItemCard(
                                 Key.Enter if event.type == KeyEventType.KeyDown -> {
                                     confirmEdit(); true
                                 }
+
                                 Key.Escape if event.type == KeyEventType.KeyDown -> {
                                     isEditing = false; true
                                 }
+
                                 else -> false
                             }
                         }
@@ -212,18 +219,20 @@ fun OrderItemCard(
 @Composable
 fun OrderItemCardPreview() {
     val settingVM = remember { SettingViewModel() }
-    CompositionLocalProvider(LocalSettingVM provides settingVM) {
-        OrderItemCard(
-            item = MenuItem(
-                id = 1,
-                imageUrl = "",
-                name = "Matcha Latte",
-                priceBaht = "100.00",
-                priceSat = "26,000",
-                count = 2u
-            ),
-            onAddClick = {},
-            onReduceClick = {}
-        )
+    CompositionLocalProvider(LocalSettingVM provides SettingSurfaceImpl(settingVM)) {
+        MaterialTheme {
+            OrderItemCard(
+                item = MenuItem(
+                    id = 1,
+                    imageUrl = "",
+                    name = "Matcha Latte",
+                    priceBaht = "100.00",
+                    priceSat = "26,000",
+                    count = 2u
+                ),
+                onAddClick = {},
+                onReduceClick = {}
+            )
+        }
     }
 }

@@ -18,7 +18,6 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.painter.ColorPainter
@@ -37,6 +36,7 @@ import org.siamdev.zappos.cache.ThumbnailSection
 import org.siamdev.zappos.cache.sanitizeCategory
 import org.siamdev.zappos.cache.thumbnailCache
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
 import zappos.composeapp.generated.resources.Res
@@ -44,6 +44,7 @@ import org.jetbrains.compose.resources.painterResource
 import zappos.composeapp.generated.resources.compose_multiplatform
 import org.siamdev.zappos.LocalSettingVM
 import org.siamdev.zappos.ui.components.common.CurrencyCodeIcon
+import org.siamdev.zappos.ui.screens.setting.SettingSurfaceImpl
 import org.siamdev.zappos.ui.screens.setting.SettingViewModel
 
 
@@ -71,6 +72,7 @@ fun MenuItemCard(
             imageUrl, id, name, priceBaht, priceSat, category, isRecommended, isAvailable,
             count, showChevron, onAddClick, onClick
         )
+
         MenuViewMode.GRID -> MenuItemCardGrid(
             imageUrl, id, name, priceBaht, priceSat, category, isRecommended, isAvailable,
             count, onAddClick
@@ -113,7 +115,13 @@ private fun MenuItemCardList(
                 .padding(10.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            MenuImage(imageUrl = imageUrl, id = id, category = category, size = imageSize, cornerRadius = 10.dp)
+            MenuImage(
+                imageUrl = imageUrl,
+                id = id,
+                category = category,
+                size = imageSize,
+                cornerRadius = 10.dp
+            )
 
             Spacer(Modifier.width(12.dp))
 
@@ -186,7 +194,9 @@ private fun MenuItemCardList(
             } else {
                 Column(
                     horizontalAlignment = Alignment.CenterHorizontally,
-                    modifier = Modifier.align(Alignment.Bottom)
+                    modifier = Modifier
+                        .align(Alignment.Bottom)
+                        .alpha(if (isAvailable) 1f else 0f)
                 ) {
                     if (count > 0u) {
                         CountBadge(count = count)
@@ -198,7 +208,6 @@ private fun MenuItemCardList(
         }
     }
 }
-
 
 
 @Composable
@@ -216,15 +225,14 @@ private fun MenuItemCardGrid(
 ) {
     BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
         val cardWidth = maxWidth
+        val scale = (cardWidth / 160.dp).coerceIn(0.8f, 1.15f)
 
-        val scale = (cardWidth / 160.dp).coerceIn(0.85f, 1.25f)
-
-        val imageHeight = 170.dp * scale
-        val padding = 10.dp * scale
-        val titleSize = MaterialTheme.typography.bodyLarge.fontSize * scale
-        val smallSize = MaterialTheme.typography.bodySmall.fontSize * scale
-        val iconSize = 15.dp * scale
-        val buttonSize = 32.dp * scale
+        val padding = 8.dp * scale
+        val gap = 3.dp * scale
+        val titleSize = MaterialTheme.typography.bodyMedium.fontSize * scale
+        val labelSize = MaterialTheme.typography.labelSmall.fontSize * scale
+        val iconSize = 12.dp * scale
+        val buttonSize = 28.dp * scale
 
         Card(
             modifier = Modifier
@@ -236,21 +244,37 @@ private fun MenuItemCardGrid(
             border = CardDefaults.outlinedCardBorder()
         ) {
             Column {
-                MenuImage(
-                    imageUrl = imageUrl,
-                    id = id,
-                    category = category,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .aspectRatio(1.2f)
-                        .height(imageHeight)
-                        .clip(RoundedCornerShape(topStart = 10.dp, topEnd = 10.dp)),
-                    cornerRadius = 0.dp
-                )
+                Box {
+                    MenuImage(
+                        imageUrl = imageUrl,
+                        id = id,
+                        category = category,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .aspectRatio(1.6f)
+                            .clip(RoundedCornerShape(topStart = 10.dp, topEnd = 10.dp)),
+                        cornerRadius = 0.dp
+                    )
+                    if (!isAvailable) {
+                        Box(
+                            modifier = Modifier
+                                .align(Alignment.TopEnd)
+                                .padding(6.dp)
+                                .clip(RoundedCornerShape(4.dp))
+                                .background(MaterialTheme.colorScheme.errorContainer)
+                                .padding(horizontal = 6.dp, vertical = 2.dp)
+                        ) {
+                            Text(
+                                "Unavailable",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onErrorContainer,
+                                maxLines = 1
+                            )
+                        }
+                    }
+                }
 
                 Column(Modifier.padding(padding)) {
-
-                    // Title
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(
                             text = name,
@@ -260,9 +284,8 @@ private fun MenuItemCardGrid(
                             overflow = TextOverflow.Ellipsis,
                             modifier = Modifier.weight(1f, false)
                         )
-
                         if (isRecommended) {
-                            Spacer(Modifier.width(4.dp))
+                            Spacer(Modifier.width(gap))
                             Icon(
                                 Icons.Default.Star,
                                 contentDescription = null,
@@ -273,42 +296,23 @@ private fun MenuItemCardGrid(
                     }
 
                     if (category.isNotBlank()) {
-                        Spacer(Modifier.height(2.dp))
+                        Spacer(Modifier.height(gap))
                         Text(
                             text = category,
-                            fontSize = smallSize,
+                            fontSize = labelSize,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             maxLines = 1
                         )
                     }
 
-                    Spacer(Modifier.height(4.dp * scale))
+                    Spacer(Modifier.height(gap))
+                    PriceRow(priceBaht = priceBaht, priceSat = priceSat)
 
-                    PriceRow(
-                        priceBaht = priceBaht,
-                        priceSat = priceSat
-                    )
-
-                    Spacer(Modifier.height(4.dp))
-                    Box(
-                        modifier = Modifier
-                            .alpha(if (isAvailable) 0f else 1f)
-                            .clip(RoundedCornerShape(4.dp))
-                            .background(MaterialTheme.colorScheme.errorContainer)
-                            .padding(horizontal = 6.dp, vertical = 2.dp)
-                    ) {
-                        Text(
-                            "Unavailable",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onErrorContainer,
-                            maxLines = 1
-                        )
-                    }
-
-                    Spacer(Modifier.height(8.dp * scale))
-
+                    Spacer(Modifier.height(gap))
                     Row(
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .alpha(if (isAvailable) 1f else 0f),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
@@ -317,11 +321,7 @@ private fun MenuItemCardGrid(
                         } else {
                             Spacer(Modifier.weight(1f))
                         }
-
-                        AddButton(
-                            onClick = onAddClick,
-                            size = buttonSize
-                        )
+                        AddButton(onClick = onAddClick, size = buttonSize)
                     }
                 }
             }
@@ -344,9 +344,14 @@ private fun MenuImage(
     val source: Any = remember(id, category, imageUrl) {
         if (id != 0) {
             val cache = thumbnailCache
-            val cat   = sanitizeCategory(category)
-            val hash  = cache?.getHash(ThumbnailSection.PRODUCTS, cat, id.toString())
-            if (cache != null && hash != null && cache.exists(ThumbnailSection.PRODUCTS, cat, hash)) {
+            val cat = sanitizeCategory(category)
+            val hash = cache?.getHash(ThumbnailSection.PRODUCTS, cat, id.toString())
+            if (cache != null && hash != null && cache.exists(
+                    ThumbnailSection.PRODUCTS,
+                    cat,
+                    hash
+                )
+            ) {
                 cache.filePath(ThumbnailSection.PRODUCTS, cat, hash).toPath()
             } else imageUrl
         } else imageUrl
@@ -371,17 +376,18 @@ private fun MenuImage(
 
 @Composable
 private fun PriceRow(priceBaht: String, priceSat: String?) {
-    val settingVM = LocalSettingVM.current
-    val showSecondary by settingVM.showSecondaryCurrency.collectAsState()
-    val primaryCurrency by settingVM.primaryCurrency.collectAsState()
-    val secondaryCurrency by settingVM.secondaryCurrency.collectAsState()
-    val primaryCode = primaryCurrency?.code ?: "THB"
-    val secondaryCode = secondaryCurrency?.code ?: "SATS"
+    val setting = LocalSettingVM.current
+    val showSecondary = setting.showSecondaryCurrency
+    val primaryCode = setting.primaryCurrency?.code ?: "THB"
+    val secondaryCode = setting.secondaryCurrency?.code ?: "SATS"
     Row(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(10.dp)
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(2.dp)
+        ) {
             CurrencyCodeIcon(
                 code = primaryCode,
                 modifier = Modifier.size(13.dp),
@@ -441,7 +447,7 @@ private fun CountBadge(count: UInt) {
 @Composable
 private fun AddButton(
     onClick: () -> Unit,
-    size: androidx.compose.ui.unit.Dp
+    size: Dp
 ) {
     MaterialButton(
         modifier = Modifier.size(size),
@@ -453,12 +459,11 @@ private fun AddButton(
 }
 
 
-
 // LIST — count + category + recommended
 @Preview
 @Composable
 fun MenuItemCardListPreview() {
-    CompositionLocalProvider(LocalSettingVM provides SettingViewModel()) {
+    CompositionLocalProvider(LocalSettingVM provides SettingSurfaceImpl(SettingViewModel())) {
         MenuItemCard(
             imageUrl = "https://images.pexels.com/photos/350478/pexels-photo-350478.jpeg",
             name = "Mocha",
@@ -476,7 +481,7 @@ fun MenuItemCardListPreview() {
 @Preview
 @Composable
 fun MenuItemCardListUnavailablePreview() {
-    CompositionLocalProvider(LocalSettingVM provides SettingViewModel()) {
+    CompositionLocalProvider(LocalSettingVM provides SettingSurfaceImpl(SettingViewModel())) {
         MenuItemCard(
             imageUrl = "https://images.pexels.com/photos/17486832/pexels-photo-17486832.jpeg",
             name = "Latte",
@@ -493,7 +498,7 @@ fun MenuItemCardListUnavailablePreview() {
 @Preview
 @Composable
 fun MenuItemCardChevronPreview() {
-    CompositionLocalProvider(LocalSettingVM provides SettingViewModel()) {
+    CompositionLocalProvider(LocalSettingVM provides SettingSurfaceImpl(SettingViewModel())) {
         MenuItemCard(
             imageUrl = "https://images.pexels.com/photos/2611811/pexels-photo-2611811.jpeg",
             name = "Matcha Latte",
@@ -510,7 +515,7 @@ fun MenuItemCardChevronPreview() {
 @Preview
 @Composable
 fun MenuItemCardGridPreview() {
-    CompositionLocalProvider(LocalSettingVM provides SettingViewModel()) {
+    CompositionLocalProvider(LocalSettingVM provides SettingSurfaceImpl(SettingViewModel())) {
         MenuItemCard(
             imageUrl = "https://images.pexels.com/photos/18635175/pexels-photo-18635175.jpeg",
             name = "Matcha Coffee",
@@ -528,7 +533,7 @@ fun MenuItemCardGridPreview() {
 @Preview
 @Composable
 fun MenuItemCardGridUnavailablePreview() {
-    CompositionLocalProvider(LocalSettingVM provides SettingViewModel()) {
+    CompositionLocalProvider(LocalSettingVM provides SettingSurfaceImpl(SettingViewModel())) {
         MenuItemCard(
             imageUrl = "https://images.pexels.com/photos/18635175/pexels-photo-18635175.jpeg",
             name = "Milk",

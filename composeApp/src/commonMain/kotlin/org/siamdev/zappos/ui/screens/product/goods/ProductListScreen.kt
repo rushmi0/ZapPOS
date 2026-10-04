@@ -1,0 +1,418 @@
+/*
+ * MIT License
+ * Copyright (c) 2025 SiamDevTeam
+ */
+package org.siamdev.zappos.ui.screens.product.goods
+
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.TouchApp
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.input.pointer.PointerIcon
+import androidx.compose.ui.input.pointer.pointerHoverIcon
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.dp
+import org.siamdev.zappos.LocalSettingVM
+import org.siamdev.zappos.ui.components.common.WorkspaceHeader
+import org.siamdev.zappos.ui.components.gesture.SwipeAnimatedContent
+import org.siamdev.zappos.data.source.MasterEvent
+import org.siamdev.zappos.ui.screens.product.goods.sections.MonitorStockTabContent
+import org.siamdev.zappos.ui.screens.product.goods.sections.ProductDetailPanel
+import org.siamdev.zappos.ui.screens.product.goods.sections.ProductListPane
+import org.siamdev.zappos.ui.screens.setting.SettingSurfaceImpl
+import org.siamdev.zappos.ui.screens.setting.SettingViewModel
+
+/**
+ * Root screen for the product catalogue.
+ * Switches between [DesktopLayout] and [MobileLayout] based on window width.
+ * */
+@Composable
+fun ProductListScreen(
+    onOpenDrawer: () -> Unit = {},
+    onEditProduct: (String) -> Unit = {},
+    onDeleteProduct: (String) -> Unit = {},
+    onNewProduct: () -> Unit = {},
+    initialTab: DetailTab = DetailTab.PRODUCT_DETAIL,
+) {
+    val products = remember { sampleProducts() }
+    var selectedId by remember { mutableStateOf<String?>(null) }
+    val selected = products.find { it.id == selectedId }
+
+    BoxWithConstraints(
+        modifier =
+            Modifier
+                .fillMaxSize()
+                .background(MaterialTheme.colorScheme.background)
+                .windowInsetsPadding(WindowInsets.systemBars),
+    ) {
+        val isDesktop = maxWidth >= 750.dp && maxHeight >= 500.dp
+        val showFab = isDesktop || selected == null
+
+        Box(modifier = Modifier.fillMaxSize()) {
+            if (isDesktop) {
+                DesktopLayout(
+                    products = products,
+                    selectedId = selectedId,
+                    selected = selected,
+                    onSelect = { selectedId = it },
+                    onOpenDrawer = onOpenDrawer,
+                    onEdit = onEditProduct,
+                    onDelete = onDeleteProduct,
+                    onNewProduct = onNewProduct,
+                    initialTab = initialTab,
+                )
+            } else {
+                MobileLayout(
+                    products = products,
+                    selectedId = selectedId,
+                    selected = selected,
+                    onSelect = { selectedId = it },
+                    onBack = { selectedId = null },
+                    onOpenDrawer = onOpenDrawer,
+                    onEdit = onEditProduct,
+                    onDelete = onDeleteProduct,
+                    initialTab = initialTab,
+                )
+                if (showFab) {
+                    FloatingActionButton(
+                        onClick = onNewProduct,
+                        modifier = Modifier
+                            .align(Alignment.BottomEnd)
+                            .padding(20.dp),
+                        containerColor = MaterialTheme.colorScheme.primary,
+                    ) {
+                        Icon(Icons.Default.Add, contentDescription = "New product")
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun DesktopLayout(
+    products: List<MasterEvent>,
+    selectedId: String?,
+    selected: MasterEvent?,
+    onSelect: (String) -> Unit,
+    onOpenDrawer: () -> Unit,
+    onEdit: (String) -> Unit,
+    onDelete: (String) -> Unit = {},
+    onNewProduct: () -> Unit = {},
+    initialTab: DetailTab = DetailTab.PRODUCT_DETAIL,
+) {
+    var splitRatio by remember { mutableStateOf(0.30f) }
+
+    Column(Modifier.fillMaxSize()) {
+        WorkspaceHeader(
+            title = "Products List",
+            subtitle = "Inventory · catalog",
+            onSegmentClick = onOpenDrawer
+        )
+
+        BoxWithConstraints(
+            modifier =
+                Modifier
+                    .fillMaxSize()
+                    .padding(horizontal = 12.dp, vertical = 8.dp),
+        ) {
+            val totalWidth = maxWidth
+
+            Row(modifier = Modifier.fillMaxSize()) {
+                Box(
+                    modifier =
+                        Modifier
+                            .width(totalWidth * splitRatio)
+                            .fillMaxHeight()
+                            .clip(RoundedCornerShape(16.dp))
+                            .background(MaterialTheme.colorScheme.surface)
+                            .border(
+                                1.dp,
+                                MaterialTheme.colorScheme.outlineVariant,
+                                RoundedCornerShape(16.dp)
+                            ),
+                ) {
+                    ProductListPane(
+                        products = products,
+                        selectedId = selectedId,
+                        onSelect = onSelect,
+                        modifier = Modifier.fillMaxSize(),
+                        onNewProduct = onNewProduct,
+                    )
+                }
+
+                // Draggable divider
+                Box(
+                    modifier =
+                        Modifier
+                            .width(16.dp)
+                            .fillMaxHeight()
+                            .pointerHoverIcon(PointerIcon.Hand)
+                            .pointerInput(totalWidth) {
+                                val totalPx = totalWidth.toPx()
+                                detectHorizontalDragGestures { change, dragAmount ->
+                                    change.consume()
+                                    splitRatio =
+                                        (splitRatio + dragAmount / totalPx).coerceIn(0.20f, 0.55f)
+                                }
+                            },
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Column(
+                        verticalArrangement = Arrangement.spacedBy(5.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                    ) {
+                        repeat(5) {
+                            Box(
+                                Modifier
+                                    .size(3.dp)
+                                    .clip(RoundedCornerShape(50))
+                                    .background(MaterialTheme.colorScheme.outlineVariant),
+                            )
+                        }
+                    }
+                }
+
+                Box(
+                    modifier =
+                        Modifier
+                            .weight(1f)
+                            .fillMaxHeight()
+                            .clip(RoundedCornerShape(16.dp))
+                            .background(MaterialTheme.colorScheme.surface)
+                            .border(
+                                1.dp,
+                                MaterialTheme.colorScheme.outlineVariant,
+                                RoundedCornerShape(16.dp)
+                            ),
+                ) {
+                    if (selected != null) {
+                        ProductDetailPanel(
+                            event = selected,
+                            onEdit = { onEdit(selected.id) },
+                            onDelete = onDelete,
+                            initialTab = initialTab,
+                        )
+                    } else {
+                        EmptyDetailState()
+                    }
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Single-column layout that slides between the list and detail panel.
+ * Used on screens < 750 dp wide.
+ * */
+@Composable
+private fun MobileLayout(
+    products: List<MasterEvent>,
+    selectedId: String?,
+    selected: MasterEvent?,
+    onSelect: (String) -> Unit,
+    onBack: () -> Unit,
+    onOpenDrawer: () -> Unit,
+    onEdit: (String) -> Unit,
+    onDelete: (String) -> Unit = {},
+    initialTab: DetailTab = DetailTab.PRODUCT_DETAIL,
+) {
+    SwipeAnimatedContent(
+        targetState = selected,
+        depth = { if (it == null) 0 else 1 },
+        canSwipeBack = { it != null },
+        onSwipeBack = { onBack() },
+    ) { current ->
+        Column(Modifier.fillMaxSize()) {
+            if (current != null) {
+                WorkspaceHeader(
+                    title = "Information",
+                    subtitle = "Product · detail",
+                    onSegmentClick = onOpenDrawer,
+                    onNavigateBack = onBack,
+                )
+                ProductDetailPanel(
+                    event = current,
+                    onEdit = { onEdit(current.id) },
+                    onDelete = onDelete,
+                    initialTab = initialTab,
+                )
+            } else {
+                WorkspaceHeader(
+                    title = "Products List",
+                    onSegmentClick = onOpenDrawer,
+                )
+                ProductListPane(
+                    products = products,
+                    selectedId = selectedId,
+                    onSelect = onSelect,
+                    modifier = Modifier.fillMaxSize(),
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun EmptyDetailState() {
+    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Icon(
+                Icons.Default.TouchApp,
+                contentDescription = null,
+                modifier = Modifier.size(64.dp),
+                tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.15f),
+            )
+            Spacer(Modifier.height(16.dp))
+            Text(
+                "Select a product to view details",
+                style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.35f),
+            )
+        }
+    }
+}
+
+@Preview(showBackground = true, widthDp = 411, heightDp = 891, name = "Mobile · List")
+@Composable
+private fun MobileListPreview() {
+    CompositionLocalProvider(LocalSettingVM provides SettingSurfaceImpl(SettingViewModel())) {
+        MobileLayout(
+            products = sampleProducts(),
+            selectedId = null,
+            selected = null,
+            onSelect = {},
+            onBack = {},
+            onOpenDrawer = {},
+            onEdit = {},
+        )
+    }
+}
+
+@Preview(
+    showBackground = true,
+    widthDp = 411,
+    heightDp = 891,
+    name = "Mobile · Detail – Product Detail"
+)
+@Composable
+private fun MobileDetailProductPreview() {
+    val products = sampleProducts()
+    val selected = products.first()
+    CompositionLocalProvider(LocalSettingVM provides SettingSurfaceImpl(SettingViewModel())) {
+        MobileLayout(
+            products = products,
+            selectedId = selected.id,
+            selected = selected,
+            onSelect = {},
+            onBack = {},
+            onOpenDrawer = {},
+            onEdit = {},
+        )
+    }
+}
+
+@Preview(
+    showBackground = true,
+    widthDp = 411,
+    heightDp = 891,
+    name = "Mobile · Detail – Monitor & Stock"
+)
+@Composable
+private fun MobileDetailMonitorPreview() {
+    val selected = sampleProducts().first()
+    CompositionLocalProvider(LocalSettingVM provides SettingSurfaceImpl(SettingViewModel())) {
+        Column(
+            Modifier
+                .fillMaxSize()
+                .background(MaterialTheme.colorScheme.background),
+        ) {
+            WorkspaceHeader(title = "Information", onNavigateBack = {})
+            MonitorStockTabContent(product = selected)
+        }
+    }
+}
+
+@Preview(
+    showBackground = true,
+    widthDp = 411,
+    heightDp = 891,
+    name = "Mobile · Detail – Out of Stock"
+)
+@Composable
+private fun MobileDetailOutOfStockPreview() {
+    val selected = sampleProducts().first { it.stockQty == 0 }
+    CompositionLocalProvider(LocalSettingVM provides SettingSurfaceImpl(SettingViewModel())) {
+        Column(
+            Modifier
+                .fillMaxSize()
+                .background(MaterialTheme.colorScheme.background),
+        ) {
+            WorkspaceHeader(title = "Information", onNavigateBack = {})
+            MonitorStockTabContent(product = selected)
+        }
+    }
+}
+
+@Preview(showBackground = true, widthDp = 1280, heightDp = 800, name = "Desktop · No Selection")
+@Composable
+private fun DesktopNoSelectionPreview() {
+    CompositionLocalProvider(LocalSettingVM provides SettingSurfaceImpl(SettingViewModel())) {
+        ProductListScreen()
+    }
+}
+
+@Preview(
+    showBackground = true,
+    widthDp = 1280, heightDp = 800,
+    name = "Desktop · With Product Detail Selection"
+)
+@Composable
+private fun DesktopWithProductDetailSelectionPreview() {
+    val products = sampleProducts()
+    val selected = products.first()
+    CompositionLocalProvider(LocalSettingVM provides SettingSurfaceImpl(SettingViewModel())) {
+        DesktopLayout(
+            products = products,
+            selectedId = selected.id,
+            selected = selected,
+            onSelect = {},
+            onOpenDrawer = {},
+            onEdit = {},
+        )
+    }
+}
+
+@Preview(
+    showBackground = true,
+    widthDp = 1280, heightDp = 800,
+    name = "Desktop · With Monitor & Stock Selection"
+)
+@Composable
+private fun DesktopWithMonitorAndStockSelectionPreview() {
+    val products = sampleProducts()
+    val selected = products.first()
+    CompositionLocalProvider(LocalSettingVM provides SettingSurfaceImpl(SettingViewModel())) {
+        DesktopLayout(
+            products = products,
+            selectedId = selected.id,
+            selected = selected,
+            onSelect = {},
+            onOpenDrawer = {},
+            onEdit = {},
+            initialTab = DetailTab.MONITOR_STOCK,
+        )
+    }
+}

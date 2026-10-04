@@ -10,7 +10,6 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Logout
@@ -22,15 +21,16 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.compose.ui.tooling.preview.Preview
 import org.siamdev.zappos.LocalSettingVM
 import androidx.compose.runtime.CompositionLocalProvider
-import io.ktor.client.request.invoke
 import org.siamdev.zappos.ui.components.menu.SearchFilter
+import org.siamdev.zappos.ui.screens.setting.SettingSurfaceImpl
 import org.siamdev.zappos.ui.components.common.WorkspaceHeader
+import org.siamdev.zappos.ui.components.gesture.SwipeAnimatedContent
+import org.siamdev.zappos.ui.screens.setting.appearance.AppearanceSettingContent
+import org.siamdev.zappos.ui.screens.setting.currency.CurrencySettingContent
 
 enum class SettingGroup(val title: String) {
     GENERAL("General"),
@@ -49,22 +49,26 @@ enum class SettingInfo(val title: String, val subtitle: String? = null) {
     SIGN_OUT("Sign out")
 }
 
-data class SettingItemData(val destination: SettingInfo, val group: SettingGroup, val icon: ImageVector)
+data class SettingItemData(
+    val destination: SettingInfo,
+    val group: SettingGroup,
+    val icon: ImageVector
+)
 
 @Composable
 fun SettingScreen(
     onNavigateBack: () -> Unit = {},
     onNavigateTo: (SettingInfo) -> Unit = {},
-    onLogout: () -> Unit = {}
+    onLogout: () -> Unit = {},
+    initialSelected: SettingInfo? = null,
 ) {
-    val vm = LocalSettingVM.current
-    val writeError by vm.writeError.collectAsState()
+    val setting = LocalSettingVM.current
     val snackbarHostState = remember { SnackbarHostState() }
 
-    LaunchedEffect(writeError) {
-        val err = writeError ?: return@LaunchedEffect
-        snackbarHostState.showSnackbar(err.message ?: "Operation failed")
-        vm.clearError()
+    LaunchedEffect(Unit) {
+        setting.errors.collect { message ->
+            snackbarHostState.showSnackbar(message)
+        }
     }
 
     var search by remember { mutableStateOf("") }
@@ -73,147 +77,143 @@ fun SettingScreen(
         if (search.isBlank()) allItems
         else allItems.filter { it.destination.title.contains(search, true) }
     }
+    var selected by remember { mutableStateOf(initialSelected) }
+
+    // Items with an inline detail pane open in place; the rest keep their existing routing.
+    val onItemClick: (SettingInfo) -> Unit = {
+        when {
+            it == SettingInfo.SIGN_OUT -> onLogout()
+            it.hasDetail() -> selected = it
+            else -> onNavigateTo(it)
+        }
+    }
 
     Scaffold(
         snackbarHost = { SnackbarHost(snackbarHostState) }
     ) { _ ->
-        Column(
+        BoxWithConstraints(
             modifier = Modifier
                 .fillMaxSize()
                 .background(MaterialTheme.colorScheme.background)
                 .windowInsetsPadding(WindowInsets.systemBars)
         ) {
-            WorkspaceHeader(title = "Settings", onNavigateBack = onNavigateBack)
-
-            BoxWithConstraints(modifier = Modifier.weight(1f)) {
-                if (maxWidth >= 600.dp) {
-                    DesktopLayout(search, { search = it }, allItems, filteredItems, onNavigateTo, onLogout)
-                } else {
-                    MobileLayout(search, { search = it }, allItems, filteredItems, onNavigateTo, onLogout)
-                }
+            if (maxWidth >= 600.dp) {
+                DesktopLayout(
+                    search = search,
+                    onSearchChange = { search = it },
+                    allItems = allItems,
+                    filteredItems = filteredItems,
+                    selected = selected,
+                    onItemClick = onItemClick,
+                    onNavigateBack = onNavigateBack,
+                )
+            } else {
+                MobileLayout(
+                    search = search,
+                    onSearchChange = { search = it },
+                    allItems = allItems,
+                    filteredItems = filteredItems,
+                    selected = selected,
+                    onItemClick = onItemClick,
+                    onBack = { selected = null },
+                    onNavigateBack = onNavigateBack,
+                )
             }
         }
     }
 }
 
+/** Settings that render inline in the detail pane instead of navigating away. */
+private fun SettingInfo.hasDetail(): Boolean =
+    this == SettingInfo.APPEARANCE || this == SettingInfo.CURRENCY
 
+@Composable
+private fun SettingDetailContent(info: SettingInfo, modifier: Modifier = Modifier) {
+    when (info) {
+        SettingInfo.APPEARANCE -> AppearanceSettingContent(modifier)
+        SettingInfo.CURRENCY -> CurrencySettingContent(modifier)
+        else -> Unit
+    }
+}
+
+/** Single-column layout that slides between the list and detail. Used on screens < 600 dp wide. */
 @Composable
 private fun MobileLayout(
     search: String, onSearchChange: (String) -> Unit,
     allItems: List<SettingItemData>, filteredItems: List<SettingItemData>,
-    onNavigate: (SettingInfo) -> Unit,
-    onLogout: () -> Unit
+    selected: SettingInfo?,
+    onItemClick: (SettingInfo) -> Unit,
+    onBack: () -> Unit,
+    onNavigateBack: () -> Unit,
 ) {
-    Column(modifier = Modifier.fillMaxSize()) {
-        SearchFilter(
-            searchQuery = search,
-            onSearchChange = onSearchChange,
-            modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp)
-        )
-        SettingList(
-            search = search,
-            allItems = allItems,
-            filteredItems = filteredItems,
-            onNavigate = { if (it == SettingInfo.SIGN_OUT) onLogout() else onNavigate(it) },
-            contentPadding = PaddingValues(start = 20.dp, end = 20.dp, bottom = 20.dp),
-            showLogout = true
-        )
+    // Swipe left → right goes back, same as the header back button.
+    SwipeAnimatedContent(
+        targetState = selected,
+        depth = { if (it == null) 0 else 1 },
+        onSwipeBack = { if (it != null) onBack() else onNavigateBack() },
+    ) { current ->
+        Column(Modifier.fillMaxSize()) {
+            if (current != null) {
+                WorkspaceHeader(
+                    title = current.title,
+                    subtitle = "Settings · ${current.title.lowercase()}",
+                    onNavigateBack = onBack,
+                )
+                SettingDetailContent(current, Modifier.weight(1f))
+            } else {
+                WorkspaceHeader(
+                    title = "Settings",
+                    subtitle = "App · preferences",
+                    onNavigateBack = onNavigateBack,
+                )
+                SearchFilter(
+                    searchQuery = search,
+                    onSearchChange = onSearchChange,
+                    modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp)
+                )
+                SettingList(
+                    search = search,
+                    allItems = allItems,
+                    filteredItems = filteredItems,
+                    selected = null,
+                    onNavigate = onItemClick,
+                    contentPadding = PaddingValues(start = 20.dp, end = 20.dp, bottom = 20.dp),
+                )
+            }
+        }
     }
 }
 
+/** List on the left, selected setting on the right. Used on screens >= 600 dp wide. */
 @Composable
 private fun DesktopLayout(
     search: String, onSearchChange: (String) -> Unit,
     allItems: List<SettingItemData>, filteredItems: List<SettingItemData>,
-    onNavigate: (SettingInfo) -> Unit,
-    onLogout: () -> Unit
+    selected: SettingInfo?,
+    onItemClick: (SettingInfo) -> Unit,
+    onNavigateBack: () -> Unit,
 ) {
-    val desktopFilteredItems = remember(filteredItems) {
-        filteredItems.filter { it.destination != SettingInfo.SIGN_OUT }
-    }
-    val desktopAllItems = remember(allItems) {
-        allItems.filter { it.destination != SettingInfo.SIGN_OUT }
-    }
+    Column(Modifier.fillMaxSize()) {
+        WorkspaceHeader(
+            title = "Settings",
+            subtitle = "App · preferences",
+            onNavigateBack = onNavigateBack
+        )
 
-    Row(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(horizontal = 12.dp, vertical = 8.dp),
-        horizontalArrangement = Arrangement.spacedBy(12.dp)
-    ) {
-        // Left sidebar panel
-        Box(
+        Row(
             modifier = Modifier
-                .width(280.dp)
-                .fillMaxHeight()
-                .clip(RoundedCornerShape(16.dp))
-                .background(MaterialTheme.colorScheme.surface)
-                .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(16.dp))
+                .fillMaxSize()
+                .padding(horizontal = 12.dp, vertical = 8.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             Column(
                 modifier = Modifier
-                    .fillMaxSize()
-                    .padding(20.dp)
+                    .width(320.dp)
+                    .fillMaxHeight()
+                    .clip(RoundedCornerShape(16.dp))
+                    .background(MaterialTheme.colorScheme.surface)
+                    .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(16.dp))
             ) {
-                Text(
-                    "CURRENT ACCOUNT",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Spacer(Modifier.height(12.dp))
-
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(12.dp))
-                        .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.05f))
-                        .padding(12.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .size(40.dp)
-                            .clip(CircleShape)
-                            .background(MaterialTheme.colorScheme.primary)
-                    )
-                    Spacer(Modifier.width(12.dp))
-                    Column {
-                        Text("User Name", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
-                        Text("nostr:npub1...", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp)
-                    }
-                }
-
-                Spacer(Modifier.height(28.dp))
-
-                Text(
-                    "SYSTEM STATUS",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Spacer(Modifier.height(12.dp))
-                StatusItem("Version", "1.0")
-                StatusItem("Database", "12.5 MB")
-                StatusItem("Relays", "3 Connected")
-
-                Spacer(Modifier.weight(1f))
-
-                SettingItemRow(
-                    item = SettingItemData(SettingInfo.SIGN_OUT, SettingGroup.ACCOUNT, Icons.AutoMirrored.Filled.Logout),
-                    onClick = onLogout
-                )
-            }
-        }
-
-        // Right content panel
-        Box(
-            modifier = Modifier
-                .weight(1f)
-                .fillMaxHeight()
-                .clip(RoundedCornerShape(16.dp))
-                .background(MaterialTheme.colorScheme.surface)
-                .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(16.dp))
-        ) {
-            Column(modifier = Modifier.fillMaxSize()) {
                 SearchFilter(
                     searchQuery = search,
                     onSearchChange = onSearchChange,
@@ -221,25 +221,53 @@ private fun DesktopLayout(
                 )
                 SettingList(
                     search = search,
-                    allItems = desktopAllItems,
-                    filteredItems = desktopFilteredItems,
-                    onNavigate = { if (it == SettingInfo.SIGN_OUT) onLogout() else onNavigate(it) },
-                    contentPadding = PaddingValues(start = 20.dp, end = 20.dp, bottom = 20.dp),
-                    showLogout = false
+                    allItems = allItems,
+                    filteredItems = filteredItems,
+                    selected = selected,
+                    onNavigate = onItemClick,
+                    contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 16.dp),
                 )
+            }
+
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxHeight()
+            ) {
+                if (selected != null) {
+                    SettingDetailContent(selected)
+                } else {
+                    EmptyDetailState()
+                }
             }
         }
     }
 }
 
 @Composable
-private fun StatusItem(label: String, value: String) {
-    Row(
-        modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp),
-        horizontalArrangement = Arrangement.SpaceBetween
+private fun EmptyDetailState() {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .clip(RoundedCornerShape(16.dp))
+            .background(MaterialTheme.colorScheme.surface)
+            .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(16.dp)),
+        contentAlignment = Alignment.Center
     ) {
-        Text(label, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        Text(value, style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurface)
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Icon(
+                Icons.Default.TouchApp,
+                contentDescription = null,
+                modifier = Modifier.size(64.dp),
+                tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.15f),
+            )
+            Spacer(Modifier.height(16.dp))
+            Text(
+                "Select a setting to view details",
+                style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.35f),
+            )
+        }
     }
 }
 
@@ -248,9 +276,9 @@ private fun SettingList(
     search: String,
     allItems: List<SettingItemData>,
     filteredItems: List<SettingItemData>,
+    selected: SettingInfo?,
     onNavigate: (SettingInfo) -> Unit,
     contentPadding: PaddingValues,
-    showLogout: Boolean
 ) {
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
@@ -259,9 +287,7 @@ private fun SettingList(
     ) {
         if (search.isBlank()) {
             SettingGroup.entries.forEach { group ->
-                val groupItems = allItems.filter {
-                    it.group == group && (showLogout || it.destination != SettingInfo.SIGN_OUT)
-                }
+                val groupItems = allItems.filter { it.group == group }
                 if (groupItems.isNotEmpty()) {
                     item {
                         Text(
@@ -272,29 +298,45 @@ private fun SettingList(
                         )
                     }
                     items(groupItems) { item ->
-                        SettingItemRow(item, onClick = { onNavigate(item.destination) })
+                        SettingItemRow(
+                            item,
+                            isSelected = item.destination == selected,
+                            onClick = { onNavigate(item.destination) },
+                        )
                     }
                 }
             }
         } else {
             items(filteredItems) { item ->
-                SettingItemRow(item, onClick = { onNavigate(item.destination) })
+                SettingItemRow(
+                    item,
+                    isSelected = item.destination == selected,
+                    onClick = { onNavigate(item.destination) },
+                )
             }
         }
     }
 }
 
 @Composable
-private fun SettingItemRow(item: SettingItemData, onClick: () -> Unit) {
+private fun SettingItemRow(
+    item: SettingItemData,
+    isSelected: Boolean = false,
+    onClick: () -> Unit,
+) {
     val isLogout = item.destination == SettingInfo.SIGN_OUT
     val tintColor = if (isLogout) Color(0xFFE53935) else MaterialTheme.colorScheme.primary
-    val bgColor = if (isLogout) Color(0xFFFFEBEE) else MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)
+    val bgColor =
+        if (isLogout) Color(0xFFFFEBEE) else MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)
 
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(12.dp))
-            .background(MaterialTheme.colorScheme.surfaceVariant)
+            .background(
+                if (isSelected) MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)
+                else MaterialTheme.colorScheme.surfaceVariant
+            )
             .clickable(onClick = onClick)
             .padding(12.dp),
         verticalAlignment = Alignment.CenterVertically
@@ -303,7 +345,12 @@ private fun SettingItemRow(item: SettingItemData, onClick: () -> Unit) {
             modifier = Modifier.size(40.dp).clip(RoundedCornerShape(10.dp)).background(bgColor),
             contentAlignment = Alignment.Center
         ) {
-            Icon(item.icon, contentDescription = null, tint = tintColor, modifier = Modifier.size(20.dp))
+            Icon(
+                item.icon,
+                contentDescription = null,
+                tint = tintColor,
+                modifier = Modifier.size(20.dp)
+            )
         }
 
         Spacer(Modifier.width(16.dp))
@@ -315,12 +362,20 @@ private fun SettingItemRow(item: SettingItemData, onClick: () -> Unit) {
                 color = if (isLogout) tintColor else MaterialTheme.colorScheme.onSurface
             )
             item.destination.subtitle?.let {
-                Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(
+                    it,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
             }
         }
 
         if (!isLogout) {
-            Icon(Icons.Default.ChevronRight, contentDescription = null, tint = MaterialTheme.colorScheme.outline)
+            Icon(
+                Icons.Default.ChevronRight,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.outline
+            )
         }
     }
 }
@@ -344,7 +399,7 @@ private fun getSettingItems() = listOf(
 @Composable
 private fun SettingScreenMobilePreview() {
     MaterialTheme {
-        CompositionLocalProvider(LocalSettingVM provides SettingViewModel()) {
+        CompositionLocalProvider(LocalSettingVM provides SettingSurfaceImpl(SettingViewModel())) {
             SettingScreen()
         }
     }
@@ -354,8 +409,27 @@ private fun SettingScreenMobilePreview() {
 @Composable
 private fun SettingScreenDesktopPreview() {
     MaterialTheme {
-        CompositionLocalProvider(LocalSettingVM provides SettingViewModel()) {
+        CompositionLocalProvider(LocalSettingVM provides SettingSurfaceImpl(SettingViewModel())) {
             SettingScreen()
+        }
+    }
+}
+@Preview(showBackground = true, widthDp = 411, heightDp = 891, name = "Mobile · Detail – Appearance")
+@Composable
+private fun SettingScreenMobileDetailPreview() {
+    MaterialTheme {
+        CompositionLocalProvider(LocalSettingVM provides SettingSurfaceImpl(SettingViewModel())) {
+            SettingScreen(initialSelected = SettingInfo.APPEARANCE)
+        }
+    }
+}
+
+@Preview(showBackground = true, widthDp = 1280, heightDp = 800, name = "Desktop · With Currency Selection")
+@Composable
+private fun SettingScreenDesktopDetailPreview() {
+    MaterialTheme {
+        CompositionLocalProvider(LocalSettingVM provides SettingSurfaceImpl(SettingViewModel())) {
+            SettingScreen(initialSelected = SettingInfo.CURRENCY)
         }
     }
 }

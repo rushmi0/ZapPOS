@@ -24,7 +24,6 @@ import org.siamdev.zappos.ui.screens.splash.SplashViewModel
 import org.siamdev.module.db.appDatabase
 import org.siamdev.zappos.cache.DesktopThumbnailCache
 import org.siamdev.zappos.cache.thumbnailCache
-import javax.swing.SwingUtilities
 
 private val database = runBlocking { appDatabase() }.also {
     it.registerDependencies()
@@ -81,19 +80,12 @@ fun DesktopSplashWindow(
             SplashScreen(viewModel = splashViewModel)
         }
 
-        val isReady by splashViewModel.isReady.collectAsState()
-        LaunchedEffect(isReady) {
-            if (isReady) {
+        val splashState by splashViewModel.state.collectAsState()
+        LaunchedEffect(splashState.isReady) {
+            if (splashState.isReady) {
                 isOpen = false
                 onFinished()
             }
         }
     }
-}
-
-
-private inline fun <T : Any> runOnMainThreadBlocking(crossinline block: () -> T): T {
-    lateinit var result: T
-    SwingUtilities.invokeAndWait { result = block() }
-    return result
 }

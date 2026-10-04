@@ -26,6 +26,7 @@ import org.siamdev.zappos.ui.components.common.MaterialButton
 import org.siamdev.zappos.ui.components.progress.ProgressBar
 import org.siamdev.zappos.ui.screens.sale.SaleOrderSteps
 import org.siamdev.zappos.ui.components.progress.ProgressViewModel
+import org.siamdev.zappos.ui.components.progress.ProgressSurfaceImpl
 
 private val GreenSuccess = Color(0xFF4CAF50)
 
@@ -67,10 +68,10 @@ fun SuccessScreen(onOpen: () -> Unit = {}) {
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
-                        imageVector        = Icons.Default.CheckCircle,
+                        imageVector = Icons.Default.CheckCircle,
                         contentDescription = null,
-                        tint               = GreenSuccess,
-                        modifier           = Modifier.size(64.dp)
+                        tint = GreenSuccess,
+                        modifier = Modifier.size(64.dp)
                     )
                 }
             }
@@ -78,16 +79,16 @@ fun SuccessScreen(onOpen: () -> Unit = {}) {
             Spacer(Modifier.height(28.dp))
 
             Text(
-                text       = "Payment Successful",
-                style      = MaterialTheme.typography.headlineSmall,
+                text = "Payment Successful",
+                style = MaterialTheme.typography.headlineSmall,
                 fontWeight = FontWeight.Bold,
-                color      = MaterialTheme.colorScheme.onSurface
+                color = MaterialTheme.colorScheme.onSurface
             )
 
             Spacer(Modifier.height(6.dp))
 
             Text(
-                text  = "Your order has been placed.",
+                text = "Your order has been placed.",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
             )
@@ -95,12 +96,12 @@ fun SuccessScreen(onOpen: () -> Unit = {}) {
 
         // Action button
         MaterialButton(
-            modifier    = Modifier
+            modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 20.dp),
-            text        = "to Menu Screen",
+            text = "Done",
             buttonColor = MaterialTheme.colorScheme.primary,
-            onClick     = onOpen
+            onClick = onOpen
         )
         Spacer(Modifier.height(16.dp))
     }
@@ -110,7 +111,8 @@ fun SuccessScreen(onOpen: () -> Unit = {}) {
 @Composable
 fun SuccessScreenPreview() {
     val progressVM = remember { ProgressViewModel() }
-    CompositionLocalProvider(LocalProgressVM provides progressVM) {
+    val progressSurface = remember(progressVM) { ProgressSurfaceImpl(progressVM) }
+    CompositionLocalProvider(LocalProgressVM provides progressSurface) {
         MaterialTheme { SuccessScreen() }
     }
 }

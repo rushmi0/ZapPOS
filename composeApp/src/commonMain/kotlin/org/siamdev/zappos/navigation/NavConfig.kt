@@ -12,7 +12,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import org.siamdev.zappos.ui.components.common.NavigationList
+import org.siamdev.zappos.ui.components.nav.NavigationList
 import androidx.compose.material3.MaterialTheme
 import androidx.navigation3.runtime.NavBackStack
 
@@ -70,15 +70,10 @@ fun NavConfig(
 
         if (enableDrawer) {
             NavigationList(
-                isOpen = drawerOpen,
-                onDismiss = { drawerOpen = false },
-                onNavigateToHome = { navActions.to(Route.Home); drawerOpen = false },
-                onNavigateToMenu = { navActions.to(Route.Menu); drawerOpen = false },
-                onNavigateToCounter = { navActions.to(Route.Counter); drawerOpen = false },
-                onNavigateToGlow = { navActions.to(Route.GlowEffects); drawerOpen = false },
-                onNavigateToProductList = { navActions.to(Route.ProductList); drawerOpen = false },
-                onNavigateToProductEntry = { navActions.to(Route.ProductEntryMaster); drawerOpen = false },
-                onNavigateToSetting = { navActions.to(Route.Setting); drawerOpen = false }
+                isOpen       = drawerOpen,
+                currentRoute = navActions.currentRoute() as? Route,
+                onDismiss    = { drawerOpen = false },
+                onNavigate   = { route -> navActions.to(route); drawerOpen = false }
             )
         }
     }
