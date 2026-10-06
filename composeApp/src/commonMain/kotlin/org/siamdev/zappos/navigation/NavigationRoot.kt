@@ -4,6 +4,8 @@
  */
 package org.siamdev.zappos.navigation
 
+import androidx.compose.animation.AnimatedContentTransitionScope.SlideDirection
+import androidx.compose.animation.core.Easing
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -16,6 +18,7 @@ import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.viewmodel.navigation3.rememberViewModelStoreNavEntryDecorator
 import androidx.navigation3.runtime.NavBackStack
@@ -24,6 +27,7 @@ import androidx.navigation3.runtime.rememberNavBackStack
 import androidx.navigation3.runtime.rememberSaveableStateHolderNavEntryDecorator
 import androidx.navigation3.ui.NavDisplay
 import androidx.navigation3.runtime.NavEntry
+import androidx.navigationevent.NavigationEvent
 import androidx.savedstate.serialization.SavedStateConfiguration
 import kotlinx.serialization.modules.SerializersModule
 import kotlinx.serialization.modules.polymorphic
@@ -46,6 +50,9 @@ import org.siamdev.zappos.ui.screens.setting.SettingScreen
 import org.siamdev.zappos.ui.screens.setting.SettingInfo
 import org.siamdev.zappos.ui.screens.splash.SplashScreen
 import org.siamdev.zappos.ui.screens.splash.SplashViewModel
+
+// Ease-out quart: 20% swipe → ~60% of the transition, 30% → ~75%.
+private val SwipeBackEasing = Easing { f -> 1f - (1f - f).let { it * it * it * it } }
 
 @Composable
 fun NavigationRoot(
@@ -104,192 +111,204 @@ fun NavigationRoot(
         }
     }
 
-    NavDisplay(
-        backStack = backStack,
-        modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background),
-        transitionSpec = {
-            (slideInHorizontally(tween(300)) { it / 8 } + fadeIn(tween(300))) togetherWith
-                    (slideOutHorizontally(tween(300)) { -it / 8 } + fadeOut(tween(300)))
-        },
-        popTransitionSpec = {
-            (slideInHorizontally(tween(300)) { -it / 8 } + fadeIn(tween(300))) togetherWith
-                    (slideOutHorizontally(tween(300)) { it / 8 } + fadeOut(tween(300)))
-        },
-        entryDecorators = listOf(
-            rememberSaveableStateHolderNavEntryDecorator(),
-            rememberViewModelStoreNavEntryDecorator()
-        ),
-        entryProvider = { key ->
-            NavEntry(key) {
-                when (key) {
+    // Swipe-back goes back once past 15% of the width (platform default on iOS is 30%).
+    SwipeBackThreshold(enabled = platform.type == PlatformType.MOBILE) {
+        NavDisplay(
+            backStack = backStack,
+            modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background),
+            transitionSpec = {
+                (slideInHorizontally(tween(300)) { it / 8 } + fadeIn(tween(300))) togetherWith
+                        (slideOutHorizontally(tween(300)) { -it / 8 } + fadeOut(tween(300)))
+            },
+            popTransitionSpec = {
+                (slideInHorizontally(tween(300)) { -it / 8 } + fadeIn(tween(300))) togetherWith
+                        (slideOutHorizontally(tween(300)) { it / 8 } + fadeOut(tween(300)))
+            },
+            // Swipe-back gesture: the transition is seeked by swipe progress. SwipeBackEasing front-loads
+            // it so a short swipe already reveals most of the previous screen.
+            predictivePopTransitionSpec = { swipeEdge ->
+                val towards = if (swipeEdge == NavigationEvent.EDGE_RIGHT) SlideDirection.Left else SlideDirection.Right
+                slideIntoContainer(towards, tween(300, easing = SwipeBackEasing)) { it / 4 } togetherWith
+                        slideOutOfContainer(towards, tween(300, easing = SwipeBackEasing))
+            },
+            entryDecorators = listOf(
+                rememberSaveableStateHolderNavEntryDecorator(),
+                rememberViewModelStoreNavEntryDecorator()
+            ),
+            entryProvider = { key ->
+                NavEntry(key) {
+                    when (key) {
 
-                    // Splash
-                    is Route.Splash -> SplashScreen(
-                        viewModel = splashViewModel
-                    ) {
-                        if (splashViewModel.state.value.isReady) {
-                            backStack.add(Route.Login)
-                        }
-                    }
-
-                    // Login
-                    is Route.Login -> {
-                        LoginScreen(
-                            onLoginNostr = { backStack.add(Route.NostrLogin) },
-                            onLoginAnonymous = { backStack.add(Route.Home) }
-                        )
-                    }
-
-                    // Nostr Login
-                    is Route.NostrLogin -> {
-                        NostrLoginScreen(
-                            onBack = { backStack.removeAt(backStack.lastIndex) },
-                            onLoginSuccess = { backStack.add(Route.Home) }
-                        )
-                    }
-
-                    // Logout
-                    is Route.Logout -> {
-                        LaunchedEffect(Unit) {
-                            backStack.clear()
-                            backStack.add(Route.Login)
-                        }
-                    }
-
-                    // Home
-                    is Route.Home -> NavConfig(
-                        backStack = backStack
-                    ) { navActions, openDrawer ->
-                        HomeScreen(
-                            onOpenDrawer = openDrawer,
-                            onNavigateToMenu = { navActions.to(Route.Menu) }
-                        )
-                    }
-
-                    // Menu
-                    is Route.Menu -> NavConfig(
-                        backStack = backStack
-                    ) { navActions, openDrawer ->
-                        MainMenuScreen(
-                            onOpenDrawer = openDrawer,
-                            onCheckout = { navActions.to(Route.ConfirmOrder) }
-                        )
-                    }
-
-                    // Confirm Order
-                    is Route.ConfirmOrder -> NavConfig(
-                        backStack = backStack
-                    ) { navActions, _ ->
-                        ConfirmOrderScreen(
-                            onBack = { navActions.back() },
-                            onCheckout = { navActions.to(Route.Checkout) }
-                        )
-                    }
-
-                    // Product Entry Master
-                    is Route.ProductList -> NavConfig(
-                        backStack = backStack,
-                        enableDrawer = true
-                    ) { navActions, openDrawer ->
-                        ProductListScreen(
-                            onOpenDrawer = openDrawer,
-                            onEditProduct = { id -> navActions.to(Route.ProductEntryMaster(id)) },
-                            onNewProduct = { navActions.to(Route.ProductEntryMaster()) },
-                        )
-                    }
-
-                    is Route.ProductEntryMaster -> NavConfig(
-                        backStack = backStack,
-                        enableDrawer = true
-                    ) { navActions, openDrawer ->
-                        val prevRoute = backStack.toList().dropLast(1).lastOrNull()
-                        MasterEntryScreen(
-                            productId = key.productId,
-                            onNavigateBack = { navActions.back() },
-                            onOpenDrawer = openDrawer,
-                            onSave = { navActions.back() },
-                            showBackButton = prevRoute is Route.ProductList
-                        )
-                    }
-
-                    // Checkout
-                    is Route.Checkout -> NavConfig(
-                        backStack = backStack
-                    ) { navActions, _ ->
-                        CheckoutScreen(
-                            onBack = { navActions.back() },
-                            onSuccess = {
-                                navActions.back()  // pop Checkout
-                                navActions.back()  // pop ConfirmOrder → lands on Menu
+                        // Splash
+                        is Route.Splash -> SplashScreen(
+                            viewModel = splashViewModel
+                        ) {
+                            if (splashViewModel.state.value.isReady) {
+                                backStack.add(Route.Login)
                             }
-                        )
-                    }
+                        }
+
+                        // Login
+                        is Route.Login -> {
+                            LoginScreen(
+                                onLoginNostr = { backStack.add(Route.NostrLogin) },
+                                onLoginAnonymous = { backStack.add(Route.Home) }
+                            )
+                        }
+
+                        // Nostr Login
+                        is Route.NostrLogin -> {
+                            NostrLoginScreen(
+                                onBack = { backStack.removeAt(backStack.lastIndex) },
+                                onLoginSuccess = { backStack.add(Route.Home) }
+                            )
+                        }
+
+                        // Logout
+                        is Route.Logout -> {
+                            LaunchedEffect(Unit) {
+                                backStack.clear()
+                                backStack.add(Route.Login)
+                            }
+                        }
+
+                        // Home
+                        is Route.Home -> NavConfig(
+                            backStack = backStack
+                        ) { navActions, openDrawer ->
+                            HomeScreen(
+                                onOpenDrawer = openDrawer,
+                                onNavigateToMenu = { navActions.to(Route.Menu) }
+                            )
+                        }
+
+                        // Menu
+                        is Route.Menu -> NavConfig(
+                            backStack = backStack
+                        ) { navActions, openDrawer ->
+                            MainMenuScreen(
+                                onOpenDrawer = openDrawer,
+                                onCheckout = { navActions.to(Route.ConfirmOrder) }
+                            )
+                        }
+
+                        // Confirm Order
+                        is Route.ConfirmOrder -> NavConfig(
+                            backStack = backStack
+                        ) { navActions, _ ->
+                            ConfirmOrderScreen(
+                                onBack = { navActions.back() },
+                                onCheckout = { navActions.to(Route.Checkout) }
+                            )
+                        }
+
+                        // Product Entry Master
+                        is Route.ProductList -> NavConfig(
+                            backStack = backStack,
+                            enableDrawer = true
+                        ) { navActions, openDrawer ->
+                            ProductListScreen(
+                                onOpenDrawer = openDrawer,
+                                onEditProduct = { id -> navActions.to(Route.ProductEntryMaster(id)) },
+                                onNewProduct = { navActions.to(Route.ProductEntryMaster()) },
+                            )
+                        }
+
+                        is Route.ProductEntryMaster -> NavConfig(
+                            backStack = backStack,
+                            enableDrawer = true
+                        ) { navActions, openDrawer ->
+                            // Snapshot once: reading the live backStack flips this to false while
+                            // the screen is still animating out after a pop.
+                            val prevRoute = remember { backStack.toList().dropLast(1).lastOrNull() }
+                            MasterEntryScreen(
+                                productId = key.productId,
+                                onNavigateBack = { navActions.back() },
+                                onOpenDrawer = openDrawer,
+                                onSave = { navActions.back() },
+                                showBackButton = prevRoute is Route.ProductList
+                            )
+                        }
+
+                        // Checkout
+                        is Route.Checkout -> NavConfig(
+                            backStack = backStack
+                        ) { navActions, _ ->
+                            CheckoutScreen(
+                                onBack = { navActions.back() },
+                                onSuccess = {
+                                    navActions.back()  // pop Checkout
+                                    navActions.back()  // pop ConfirmOrder → lands on Menu
+                                }
+                            )
+                        }
 
 
-                    // Counter
-                    is Route.Counter -> NavConfig(
-                        backStack = backStack
-                    ) { _, openDrawer ->
-                        SelectionContainer {
-                            CounterScreen(
+                        // Counter
+                        is Route.Counter -> NavConfig(
+                            backStack = backStack
+                        ) { _, openDrawer ->
+                            SelectionContainer {
+                                CounterScreen(
+                                    onOpenDrawer = openDrawer
+                                )
+                            }
+                        }
+
+                        is Route.GlowEffects -> NavConfig(
+                            backStack = backStack
+                        ) { _, openDrawer ->
+                            GlowStyleScreen(
                                 onOpenDrawer = openDrawer
                             )
                         }
-                    }
 
-                    is Route.GlowEffects -> NavConfig(
-                        backStack = backStack
-                    ) { _, openDrawer ->
-                        GlowStyleScreen(
-                            onOpenDrawer = openDrawer
-                        )
-                    }
-
-                    // Setting
-                    is Route.Setting -> NavConfig(
-                        backStack = backStack
-                    ) { navActions, _ ->
-                        SettingScreen(
-                            onNavigateBack = { navActions.back() },
-                            onNavigateTo = { info ->
-                                when (info) {
-                                    SettingInfo.APPEARANCE -> navActions.to(Route.AppearanceSetting)
-                                    SettingInfo.CURRENCY -> navActions.to(Route.CurrencySetting)
-                                    else -> { /* TODO */
+                        // Setting
+                        is Route.Setting -> NavConfig(
+                            backStack = backStack
+                        ) { navActions, _ ->
+                            SettingScreen(
+                                onNavigateBack = { navActions.back() },
+                                onNavigateTo = { info ->
+                                    when (info) {
+                                        SettingInfo.APPEARANCE -> navActions.to(Route.AppearanceSetting)
+                                        SettingInfo.CURRENCY -> navActions.to(Route.CurrencySetting)
+                                        else -> { /* TODO */
+                                        }
                                     }
-                                }
-                            },
-                            onLogout = { navActions.logout() }
-                        )
+                                },
+                                onLogout = { navActions.logout() }
+                            )
+                        }
+
+                        // Appearance Setting (theme + font)
+                        is Route.AppearanceSetting -> NavConfig(
+                            backStack = backStack,
+                            enableDrawer = false
+                        ) { navActions, _ ->
+                            AppearanceSettingScreen(
+                                onNavigateBack = { navActions.back() }
+                            )
+                        }
+
+                        // Currency Setting
+                        is Route.CurrencySetting -> NavConfig(
+                            backStack = backStack,
+                            enableDrawer = false
+                        ) { navActions, _ ->
+                            CurrencySettingScreen(
+                                onNavigateBack = { navActions.back() }
+                            )
+                        }
+
+
+                        is Route.TopBarStyle -> TopBarScreen()
+
+
+                        else -> error("Unknown NavKey: $key")
                     }
-
-                    // Appearance Setting (theme + font)
-                    is Route.AppearanceSetting -> NavConfig(
-                        backStack = backStack,
-                        enableDrawer = false
-                    ) { navActions, _ ->
-                        AppearanceSettingScreen(
-                            onNavigateBack = { navActions.back() }
-                        )
-                    }
-
-                    // Currency Setting
-                    is Route.CurrencySetting -> NavConfig(
-                        backStack = backStack,
-                        enableDrawer = false
-                    ) { navActions, _ ->
-                        CurrencySettingScreen(
-                            onNavigateBack = { navActions.back() }
-                        )
-                    }
-
-
-                    is Route.TopBarStyle -> TopBarScreen()
-
-
-                    else -> error("Unknown NavKey: $key")
                 }
             }
-        }
-    )
+        )
+    }
 }
