@@ -11,24 +11,26 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import org.siamdev.zappos.ui.components.product.ProductListItem
+import org.siamdev.zappos.ui.components.product.ProductListItemDefaults
 import androidx.compose.ui.tooling.preview.Preview
 
 @Composable
 private fun shimmerBrush(): Brush {
-    val base = MaterialTheme.colorScheme.surfaceVariant
-    val highlight = MaterialTheme.colorScheme.surface
+    // Tints of onSurface stay visible on the surfaceVariant card in both light and dark themes.
+    val base = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f)
+    val highlight = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.03f)
     val shimmerColors = listOf(base, highlight, base)
     val transition = rememberInfiniteTransition()
     val translateAnim by transition.animateFloat(
@@ -47,113 +49,92 @@ private fun shimmerBrush(): Brush {
 }
 
 @Composable
+private fun SkeletonLine(brush: Brush, widthFraction: Float, height: Dp) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth(widthFraction)
+            .height(height)
+            .clip(RoundedCornerShape(6.dp))
+            .background(brush)
+    )
+}
+
+/** Loading placeholder that mirrors the list layout of [MenuItemCard] (a [ProductListItem] row). */
+@Composable
 fun MenuItemCardListSkeleton() {
     val brush = shimmerBrush()
-    Card(
+    Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 4.dp),
-        shape = RoundedCornerShape(10.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        elevation = CardDefaults.cardElevation(0.dp),
-        border = CardDefaults.outlinedCardBorder()
+            .clip(ProductListItemDefaults.Shape)
+            .background(ProductListItemDefaults.colors().containerColor)
+            .padding(ProductListItemDefaults.ContentPadding),
+        verticalAlignment = Alignment.CenterVertically
     ) {
-        Row(
+        // Thumbnail placeholder
+        Box(
             modifier = Modifier
-                .fillMaxWidth()
-                .padding(10.dp)
-        ) {
-            // Image placeholder
-            Box(
-                modifier = Modifier
-                    .size(75.dp)
-                    .clip(RoundedCornerShape(10.dp))
-                    .background(brush)
-            )
+                .size(ProductListItemDefaults.ThumbnailSize)
+                .clip(ProductListItemDefaults.ThumbnailShape)
+                .background(brush)
+        )
 
-            Spacer(Modifier.width(14.dp))
+        Spacer(Modifier.width(10.dp))
 
-            Column(modifier = Modifier.weight(1f)) {
-                // Name placeholder
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth(0.6f)
-                        .height(14.dp)
-                        .clip(RoundedCornerShape(6.dp))
-                        .background(brush)
-                )
-                Spacer(Modifier.height(10.dp))
-                // Price placeholder
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth(0.4f)
-                        .height(12.dp)
-                        .clip(RoundedCornerShape(6.dp))
-                        .background(brush)
-                )
-                Spacer(Modifier.height(6.dp))
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth(0.3f)
-                        .height(10.dp)
-                        .clip(RoundedCornerShape(6.dp))
-                        .background(brush)
-                )
-            }
-
-            // Button placeholder
-            Box(
-                modifier = Modifier
-                    .size(36.dp)
-                    .clip(RoundedCornerShape(8.dp))
-                    .background(brush)
-            )
+        Column(modifier = Modifier.weight(1f)) {
+            SkeletonLine(brush, widthFraction = 0.6f, height = 14.dp) // name
+            Spacer(Modifier.height(5.dp))
+            SkeletonLine(brush, widthFraction = 0.35f, height = 10.dp) // category
+            Spacer(Modifier.height(5.dp))
+            SkeletonLine(brush, widthFraction = 0.3f, height = 12.dp) // price
         }
+
+        Spacer(Modifier.width(8.dp))
+
+        // Add button placeholder
+        Box(
+            modifier = Modifier
+                .size(32.dp)
+                .clip(RoundedCornerShape(8.dp))
+                .background(brush)
+        )
     }
 }
 
+/** Loading placeholder that mirrors the grid layout of [MenuItemCard]. */
 @Composable
 fun MenuItemCardGridSkeleton() {
     val brush = shimmerBrush()
-    Card(
+    Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(4.dp),
-        shape = RoundedCornerShape(10.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        elevation = CardDefaults.cardElevation(0.dp),
-        border = CardDefaults.outlinedCardBorder()
+            .padding(4.dp)
+            .clip(ProductListItemDefaults.Shape)
+            .background(ProductListItemDefaults.colors().containerColor)
     ) {
-        Column(modifier = Modifier.fillMaxWidth()) {
-            // Image placeholder
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(130.dp)
-                    .clip(RoundedCornerShape(topStart = 10.dp, topEnd = 10.dp))
-                    .background(brush)
-            )
-            Column(modifier = Modifier.padding(12.dp)) {
+        // Image placeholder
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .aspectRatio(1.6f)
+                .background(brush)
+        )
+        Column(modifier = Modifier.padding(ProductListItemDefaults.ContentPadding)) {
+            SkeletonLine(brush, widthFraction = 0.7f, height = 14.dp) // name
+            Spacer(Modifier.height(5.dp))
+            SkeletonLine(brush, widthFraction = 0.45f, height = 10.dp) // category
+            Spacer(Modifier.height(6.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Box(Modifier.weight(1f)) {
+                    SkeletonLine(brush, widthFraction = 0.5f, height = 12.dp) // price
+                }
+                // Add button placeholder
                 Box(
                     modifier = Modifier
-                        .fillMaxWidth(0.7f)
-                        .height(14.dp)
-                        .clip(RoundedCornerShape(6.dp))
-                        .background(brush)
-                )
-                Spacer(Modifier.height(8.dp))
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth(0.5f)
-                        .height(12.dp)
-                        .clip(RoundedCornerShape(6.dp))
-                        .background(brush)
-                )
-                Spacer(Modifier.height(16.dp))
-                // Button placeholder
-                Box(
-                    modifier = Modifier
-                        .size(34.dp)
+                        .size(32.dp)
                         .clip(RoundedCornerShape(8.dp))
                         .background(brush)
                 )
@@ -179,15 +160,19 @@ fun MenuListSkeleton(count: Int = 6) {
 // Grid skeleton
 @Composable
 fun MenuGridSkeleton(count: Int = 6) {
-    LazyVerticalGrid(
-        columns = GridCells.Adaptive(minSize = 160.dp),
-        modifier = Modifier.fillMaxSize(),
-        verticalArrangement = Arrangement.spacedBy(4.dp),
-        horizontalArrangement = Arrangement.spacedBy(4.dp),
-        contentPadding = PaddingValues(bottom = 24.dp)
-    ) {
-        items(count) {
-            MenuItemCardGridSkeleton()
+    BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+        val gridColumns = if (maxWidth < 500.dp) GridCells.Fixed(2)
+                          else GridCells.Adaptive(minSize = 250.dp)
+        LazyVerticalGrid(
+            columns = gridColumns,
+            modifier = Modifier.fillMaxSize(),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
+            contentPadding = PaddingValues(bottom = 24.dp)
+        ) {
+            items(count) {
+                MenuItemCardGridSkeleton()
+            }
         }
     }
 }

@@ -130,6 +130,9 @@ internal fun MenuItemsContent(
     modifier: Modifier = Modifier,
     contentPadding: PaddingValues = PaddingValues(bottom = 24.dp)
 ) {
+    // Unavailable items are not rendered at all, so drop them before they reach the lazy layouts.
+    val visibleItems = remember(items) { items.filter { it.isAvailable } }
+
     PullToRefreshBox(
         isRefreshing = isLoading,
         onRefresh = onRefresh,
@@ -141,7 +144,7 @@ internal fun MenuItemsContent(
                 MenuViewMode.GRID -> MenuGridSkeleton()
             }
 
-            items.isEmpty() -> Box(
+            visibleItems.isEmpty() -> Box(
                 modifier = Modifier
                     .fillMaxSize()
                     .verticalScroll(rememberScrollState()),
@@ -168,8 +171,8 @@ internal fun MenuItemsContent(
                 verticalArrangement = Arrangement.spacedBy(8.dp),
                 contentPadding = contentPadding
             ) {
-                items(items.size) { index ->
-                    val item = items[index]
+                items(visibleItems.size) { index ->
+                    val item = visibleItems[index]
                     MenuItemCard(
                         imageUrl = item.imageUrl,
                         id = item.id,
@@ -197,7 +200,7 @@ internal fun MenuItemsContent(
                     horizontalArrangement = Arrangement.spacedBy(4.dp),
                     contentPadding = contentPadding
                 ) {
-                    items(items) { item ->
+                    items(visibleItems) { item ->
                         MenuItemCard(
                             imageUrl = item.imageUrl,
                             id = item.id,

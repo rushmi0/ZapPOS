@@ -7,12 +7,10 @@ package org.siamdev.zappos.ui.components.menu
 import org.siamdev.zappos.ui.components.common.MaterialButton
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -20,9 +18,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.RectangleShape
+import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.painter.ColorPainter
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -36,7 +35,6 @@ import org.siamdev.zappos.cache.ThumbnailSection
 import org.siamdev.zappos.cache.sanitizeCategory
 import org.siamdev.zappos.cache.thumbnailCache
 import androidx.compose.runtime.CompositionLocalProvider
-import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
 import zappos.composeapp.generated.resources.Res
@@ -44,8 +42,12 @@ import org.jetbrains.compose.resources.painterResource
 import zappos.composeapp.generated.resources.compose_multiplatform
 import org.siamdev.zappos.LocalSettingVM
 import org.siamdev.zappos.ui.components.common.CurrencyCodeIcon
+import org.siamdev.zappos.ui.components.product.ProductListItem
+import org.siamdev.zappos.ui.components.product.ProductListItemDefaults
 import org.siamdev.zappos.ui.screens.setting.SettingSurfaceImpl
 import org.siamdev.zappos.ui.screens.setting.SettingViewModel
+import org.siamdev.zappos.theme.ThemeMode
+import org.siamdev.zappos.theme.ZapposTheme
 
 
 enum class MenuViewMode { LIST, GRID }
@@ -67,14 +69,17 @@ fun MenuItemCard(
     onReduceClick: () -> Unit = {},
     onClick: () -> Unit = {}
 ) {
+    // Unavailable items are hidden entirely rather than labelled.
+    if (!isAvailable) return
+
     when (viewMode) {
         MenuViewMode.LIST -> MenuItemCardList(
-            imageUrl, id, name, priceBaht, priceSat, category, isRecommended, isAvailable,
+            imageUrl, id, name, priceBaht, priceSat, category, isRecommended,
             count, showChevron, onAddClick, onClick
         )
 
         MenuViewMode.GRID -> MenuItemCardGrid(
-            imageUrl, id, name, priceBaht, priceSat, category, isRecommended, isAvailable,
+            imageUrl, id, name, priceBaht, priceSat, category, isRecommended,
             count, onAddClick
         )
     }
@@ -90,123 +95,38 @@ private fun MenuItemCardList(
     priceSat: String?,
     category: String,
     isRecommended: Boolean,
-    isAvailable: Boolean,
     count: UInt,
     showChevron: Boolean,
     onAddClick: () -> Unit,
     onClick: () -> Unit
 ) {
-    val fontScale = LocalDensity.current.fontScale
-    val imageSize = (80f * fontScale.coerceIn(1f, 1.5f)).dp
-
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 4.dp)
-            .then(if (showChevron) Modifier.clickable { onClick() } else Modifier),
-        shape = RoundedCornerShape(10.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
-        elevation = CardDefaults.cardElevation(0.dp),
-        border = CardDefaults.outlinedCardBorder()
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(10.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
+    val colors = ProductListItemDefaults.colors()
+    ProductListItem(
+        title = name,
+        subtitle = category.takeIf { it.isNotBlank() },
+        supportingContent = { PriceRow(priceBaht = priceBaht, priceSat = priceSat) },
+        isRecommended = isRecommended,
+        onClick = if (showChevron) onClick else null,
+        colors = colors,
+        leading = {
             MenuImage(
                 imageUrl = imageUrl,
                 id = id,
                 category = category,
-                size = imageSize,
-                cornerRadius = 10.dp
+                size = ProductListItemDefaults.ThumbnailSize,
+                shape = ProductListItemDefaults.ThumbnailShape
             )
-
-            Spacer(Modifier.width(12.dp))
-
-            Column(modifier = Modifier.weight(1f)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        text = name,
-                        style = MaterialTheme.typography.bodyLarge,
-                        fontWeight = FontWeight.SemiBold,
-                        color = MaterialTheme.colorScheme.onSurface,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.weight(1f, fill = false)
-                    )
-                    if (isRecommended) {
-                        Spacer(Modifier.width(6.dp))
-                        Icon(
-                            Icons.Default.Star,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(17.dp)
-                        )
-                    }
-                }
-                if (category.isNotBlank()) {
-                    Spacer(Modifier.height(3.dp))
-                    Text(
-                        text = category,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                }
-                Spacer(Modifier.height(6.dp))
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    PriceRow(priceBaht = priceBaht, priceSat = priceSat)
-                    if (!isAvailable) {
-                        Box(
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(4.dp))
-                                .background(MaterialTheme.colorScheme.errorContainer)
-                                .padding(horizontal = 6.dp, vertical = 2.dp)
-                        ) {
-                            Text(
-                                "Unavailable",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onErrorContainer
-                            )
-                        }
-                    }
-                }
-            }
-
-            Spacer(Modifier.width(4.dp))
-
+        },
+        trailing = {
+            Spacer(Modifier.width(8.dp))
             if (showChevron) {
-                Icon(
-                    Icons.Default.ChevronRight,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f),
-                    modifier = Modifier
-                        .size(18.dp)
-                        .align(Alignment.CenterVertically)
-                )
+                AddButton(onClick = onAddClick, size = 32.dp)
             } else {
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    modifier = Modifier
-                        .align(Alignment.Bottom)
-                        .alpha(if (isAvailable) 1f else 0f)
-                ) {
-                    if (count > 0u) {
-                        CountBadge(count = count)
-                        Spacer(Modifier.height(15.dp))
-                    }
-                    AddButton(onClick = onAddClick, size = 36.dp)
-                }
+                if (count > 0u) CountBadge(count = count)
+                AddButton(onClick = onAddClick, size = 32.dp)
             }
         }
-    }
+    )
 }
 
 
@@ -219,111 +139,69 @@ private fun MenuItemCardGrid(
     priceSat: String?,
     category: String,
     isRecommended: Boolean,
-    isAvailable: Boolean,
     count: UInt,
     onAddClick: () -> Unit
 ) {
-    BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
-        val cardWidth = maxWidth
-        val scale = (cardWidth / 160.dp).coerceIn(0.8f, 1.15f)
-
-        val padding = 8.dp * scale
-        val gap = 3.dp * scale
-        val titleSize = MaterialTheme.typography.bodyMedium.fontSize * scale
-        val labelSize = MaterialTheme.typography.labelSmall.fontSize * scale
-        val iconSize = 12.dp * scale
-        val buttonSize = 28.dp * scale
-
-        Card(
+    val colors = ProductListItemDefaults.colors()
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(4.dp)
+            .clip(ProductListItemDefaults.Shape)
+            .background(colors.containerColor)
+    ) {
+        MenuImage(
+            imageUrl = imageUrl,
+            id = id,
+            category = category,
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(4.dp),
-            shape = RoundedCornerShape(10.dp),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
-            elevation = CardDefaults.cardElevation(0.dp),
-            border = CardDefaults.outlinedCardBorder()
-        ) {
-            Column {
-                Box {
-                    MenuImage(
-                        imageUrl = imageUrl,
-                        id = id,
-                        category = category,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .aspectRatio(1.6f)
-                            .clip(RoundedCornerShape(topStart = 10.dp, topEnd = 10.dp)),
-                        cornerRadius = 0.dp
+                .aspectRatio(1.6f),
+            shape = RectangleShape
+        )
+
+        Column(Modifier.padding(ProductListItemDefaults.ContentPadding)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = name,
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    color = colors.titleColor,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f, false)
+                )
+                if (isRecommended) {
+                    Spacer(Modifier.width(4.dp))
+                    Icon(
+                        Icons.Default.Star,
+                        contentDescription = null,
+                        tint = colors.accentColor,
+                        modifier = Modifier.size(13.dp)
                     )
-                    if (!isAvailable) {
-                        Box(
-                            modifier = Modifier
-                                .align(Alignment.TopEnd)
-                                .padding(6.dp)
-                                .clip(RoundedCornerShape(4.dp))
-                                .background(MaterialTheme.colorScheme.errorContainer)
-                                .padding(horizontal = 6.dp, vertical = 2.dp)
-                        ) {
-                            Text(
-                                "Unavailable",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onErrorContainer,
-                                maxLines = 1
-                            )
-                        }
-                    }
                 }
+            }
 
-                Column(Modifier.padding(padding)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(
-                            text = name,
-                            fontSize = titleSize,
-                            fontWeight = FontWeight.SemiBold,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier.weight(1f, false)
-                        )
-                        if (isRecommended) {
-                            Spacer(Modifier.width(gap))
-                            Icon(
-                                Icons.Default.Star,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.size(iconSize)
-                            )
-                        }
-                    }
+            if (category.isNotBlank()) {
+                Text(
+                    text = category,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = colors.subtitleColor,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
 
-                    if (category.isNotBlank()) {
-                        Spacer(Modifier.height(gap))
-                        Text(
-                            text = category,
-                            fontSize = labelSize,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            maxLines = 1
-                        )
-                    }
-
-                    Spacer(Modifier.height(gap))
+            Spacer(Modifier.height(6.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Box(Modifier.weight(1f)) {
                     PriceRow(priceBaht = priceBaht, priceSat = priceSat)
-
-                    Spacer(Modifier.height(gap))
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .alpha(if (isAvailable) 1f else 0f),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        if (count > 0u) {
-                            CountBadge(count = count)
-                        } else {
-                            Spacer(Modifier.weight(1f))
-                        }
-                        AddButton(onClick = onAddClick, size = buttonSize)
-                    }
                 }
+                if (count > 0u) CountBadge(count = count)
+                AddButton(onClick = onAddClick, size = 32.dp)
             }
         }
     }
@@ -337,7 +215,7 @@ private fun MenuImage(
     category: String,
     modifier: Modifier = Modifier,
     size: Dp? = null,
-    cornerRadius: Dp = 10.dp,
+    shape: Shape = ProductListItemDefaults.ThumbnailShape,
     contentScale: ContentScale = ContentScale.Crop
 ) {
 
@@ -366,7 +244,7 @@ private fun MenuImage(
             .build(),
         contentDescription = null,
         modifier = baseModifier
-            .clip(RoundedCornerShape(cornerRadius))
+            .clip(shape)
             .background(MaterialTheme.colorScheme.surfaceVariant),
         contentScale = contentScale,
         placeholder = ColorPainter(MaterialTheme.colorScheme.surfaceVariant),
@@ -460,88 +338,60 @@ private fun AddButton(
 
 
 // LIST — count + category + recommended
-@Preview
+@Preview(showBackground = true)
 @Composable
 fun MenuItemCardListPreview() {
-    CompositionLocalProvider(LocalSettingVM provides SettingSurfaceImpl(SettingViewModel())) {
-        MenuItemCard(
-            imageUrl = "https://images.pexels.com/photos/350478/pexels-photo-350478.jpeg",
-            name = "Mocha",
-            priceBaht = "70.00",
-            priceSat = "17,500",
-            category = "Beverages · Coffee",
-            isRecommended = true,
-            count = 2u,
-            viewMode = MenuViewMode.LIST
-        )
-    }
-}
-
-// LIST — no count, unavailable
-@Preview
-@Composable
-fun MenuItemCardListUnavailablePreview() {
-    CompositionLocalProvider(LocalSettingVM provides SettingSurfaceImpl(SettingViewModel())) {
-        MenuItemCard(
-            imageUrl = "https://images.pexels.com/photos/17486832/pexels-photo-17486832.jpeg",
-            name = "Latte",
-            priceBaht = "70.00",
-            priceSat = "17,500",
-            category = "Beverages · Coffee",
-            isAvailable = false,
-            viewMode = MenuViewMode.LIST
-        )
+    ZapposTheme(themeMode = ThemeMode.LIGHT) {
+        CompositionLocalProvider(LocalSettingVM provides SettingSurfaceImpl(SettingViewModel())) {
+            MenuItemCard(
+                imageUrl = "https://images.pexels.com/photos/350478/pexels-photo-350478.jpeg",
+                name = "Mocha",
+                priceBaht = "70.00",
+                priceSat = "17,500",
+                category = "Beverages · Coffee",
+                isRecommended = true,
+                count = 2u,
+                viewMode = MenuViewMode.LIST
+            )
+        }
     }
 }
 
 // LIST — chevron mode (ProductListDetailScreen usage)
-@Preview
+@Preview(showBackground = true)
 @Composable
 fun MenuItemCardChevronPreview() {
-    CompositionLocalProvider(LocalSettingVM provides SettingSurfaceImpl(SettingViewModel())) {
-        MenuItemCard(
-            imageUrl = "https://images.pexels.com/photos/2611811/pexels-photo-2611811.jpeg",
-            name = "Matcha Latte",
-            priceBaht = "100.00",
-            category = "Beverages · Tea",
-            isRecommended = true,
-            showChevron = true,
-            viewMode = MenuViewMode.LIST
-        )
+    ZapposTheme(themeMode = ThemeMode.LIGHT) {
+        CompositionLocalProvider(LocalSettingVM provides SettingSurfaceImpl(SettingViewModel())) {
+            MenuItemCard(
+                imageUrl = "https://images.pexels.com/photos/2611811/pexels-photo-2611811.jpeg",
+                name = "Matcha Latte",
+                priceBaht = "100.00",
+                category = "Beverages · Tea",
+                isRecommended = true,
+                showChevron = true,
+                viewMode = MenuViewMode.LIST
+            )
+        }
     }
 }
 
 // GRID — recommended, with count
-@Preview
+@Preview(showBackground = true)
 @Composable
 fun MenuItemCardGridPreview() {
-    CompositionLocalProvider(LocalSettingVM provides SettingSurfaceImpl(SettingViewModel())) {
-        MenuItemCard(
-            imageUrl = "https://images.pexels.com/photos/18635175/pexels-photo-18635175.jpeg",
-            name = "Matcha Coffee",
-            priceBaht = "100.00",
-            priceSat = "26,000",
-            category = "Matcha",
-            isRecommended = true,
-            count = 1u,
-            viewMode = MenuViewMode.GRID
-        )
-    }
-}
-
-// GRID — unavailable, no count
-@Preview
-@Composable
-fun MenuItemCardGridUnavailablePreview() {
-    CompositionLocalProvider(LocalSettingVM provides SettingSurfaceImpl(SettingViewModel())) {
-        MenuItemCard(
-            imageUrl = "https://images.pexels.com/photos/18635175/pexels-photo-18635175.jpeg",
-            name = "Milk",
-            priceBaht = "50.00",
-            priceSat = "12,500",
-            category = "Other",
-            isAvailable = false,
-            viewMode = MenuViewMode.GRID
-        )
+    ZapposTheme(themeMode = ThemeMode.LIGHT) {
+        CompositionLocalProvider(LocalSettingVM provides SettingSurfaceImpl(SettingViewModel())) {
+            MenuItemCard(
+                imageUrl = "https://images.pexels.com/photos/18635175/pexels-photo-18635175.jpeg",
+                name = "Matcha Coffee",
+                priceBaht = "100.00",
+                priceSat = "26,000",
+                category = "Matcha",
+                isRecommended = true,
+                count = 1u,
+                viewMode = MenuViewMode.GRID
+            )
+        }
     }
 }

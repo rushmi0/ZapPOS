@@ -39,6 +39,8 @@ import org.siamdev.zappos.ui.components.product.ProductPanel
 import org.siamdev.zappos.ui.components.sheet.SlideBottomSheet
 import org.siamdev.zappos.ui.screens.setting.SettingSurfaceImpl
 import org.siamdev.zappos.ui.screens.setting.SettingViewModel
+import org.siamdev.zappos.theme.ThemeMode
+import org.siamdev.zappos.theme.ZapposTheme
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -363,29 +365,33 @@ private fun previewVM() = MainMenuViewModel(autoLoad = false).also {
 @Preview(showBackground = true, widthDp = 411, heightDp = 891)
 @Composable
 fun MainMenuScreenPreview() {
-    val vm = remember { previewVM() }
-    val settingVM = remember { SettingViewModel() }
+    ZapposTheme(themeMode = ThemeMode.LIGHT) {
+        val vm = remember { previewVM() }
+        val settingVM = remember { SettingViewModel() }
 
-    CompositionLocalProvider(
-        LocalMenuVM provides MainMenuSurfaceImpl(vm),
-        LocalProductBrowserVM provides vm,
-        LocalSettingVM provides SettingSurfaceImpl(settingVM)
-    ) {
-        MainMenuScreen()
+        CompositionLocalProvider(
+            LocalMenuVM provides MainMenuSurfaceImpl(vm),
+            LocalProductBrowserVM provides vm,
+            LocalSettingVM provides SettingSurfaceImpl(settingVM)
+        ) {
+            MainMenuScreen()
+        }
     }
 }
 
 @Preview(showBackground = true, widthDp = 1280, heightDp = 800)
 @Composable
 fun MainMenuScreenDesktopPreview() {
-    val vm = remember { previewVM() }
-    val settingVM = remember { SettingViewModel() }
+    ZapposTheme(themeMode = ThemeMode.LIGHT) {
+        val vm = remember { previewVM() }
+        val settingVM = remember { SettingViewModel() }
 
-    CompositionLocalProvider(
-        LocalMenuVM provides MainMenuSurfaceImpl(vm),
-        LocalProductBrowserVM provides vm,
-        LocalSettingVM provides SettingSurfaceImpl(settingVM)
-    ) {
-        MainMenuScreen()
+        CompositionLocalProvider(
+            LocalMenuVM provides MainMenuSurfaceImpl(vm),
+            LocalProductBrowserVM provides vm,
+            LocalSettingVM provides SettingSurfaceImpl(settingVM)
+        ) {
+            MainMenuScreen()
+        }
     }
 }
