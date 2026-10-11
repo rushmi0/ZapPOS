@@ -19,13 +19,13 @@ import org.siamdev.zappos.ui.components.common.NumberUnitField
 import org.siamdev.zappos.ui.components.common.SectionCard
 import org.siamdev.zappos.ui.components.common.ToggleItem
 import org.siamdev.zappos.ui.components.picker.TimeRangeRow
-import org.siamdev.zappos.ui.screens.product.entry.EntryFormState
 import org.siamdev.zappos.ui.screens.product.entry.EntryType
-import org.siamdev.zappos.ui.screens.product.entry.MasterEntrySurface
-import org.siamdev.zappos.ui.screens.product.entry.rememberEntryFormState
+import org.siamdev.zappos.ui.screens.product.entry.EntryFormEdit
+import org.siamdev.zappos.ui.screens.product.entry.MasterEntryViewModel
+import org.siamdev.zappos.ui.screens.product.entry.PreviewEntryForm
 
 @Composable
-internal fun ResourcesBookingSection(state: MasterEntrySurface) {
+internal fun ResourcesBookingSection(form: MasterEntryViewModel.State, onEdit: EntryFormEdit) {
     SectionCard(
         icon = Icons.Default.Business,
         title = "Resources & booking",
@@ -33,15 +33,15 @@ internal fun ResourcesBookingSection(state: MasterEntrySurface) {
     ) {
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             NumberUnitField(
-                value = state.rentalUnitsCount,
-                onValueChange = { state.rentalUnitsCount = it },
+                value = form.rental.unitsCount,
+                onValueChange = { onEdit { copy(rental = rental.copy(unitsCount = it)) } },
                 label = "Units available",
-                unitLabel = state.unit.ifEmpty { "unit" },
+                unitLabel = form.pricing.unit.ifEmpty { "unit" },
                 modifier = Modifier.weight(1f),
             )
             NumberUnitField(
-                value = state.rentalBuffer,
-                onValueChange = { state.rentalBuffer = it },
+                value = form.rental.buffer,
+                onValueChange = { onEdit { copy(rental = rental.copy(buffer = it)) } },
                 label = "Buffer between slots",
                 unitLabel = "min",
                 modifier = Modifier.weight(1f),
@@ -49,15 +49,15 @@ internal fun ResourcesBookingSection(state: MasterEntrySurface) {
         }
 
         TimeRangeRow(
-            opensValue = state.rentalOpens,
-            closesValue = state.rentalCloses,
-            onOpensChange = { state.rentalOpens = it },
-            onClosesChange = { state.rentalCloses = it },
+            opensValue = form.rental.opens,
+            closesValue = form.rental.closes,
+            onOpensChange = { onEdit { copy(rental = rental.copy(opens = it)) } },
+            onClosesChange = { onEdit { copy(rental = rental.copy(closes = it)) } },
         )
 
         EntryField(
-            value = state.depositAmount,
-            onValueChange = { state.depositAmount = it.filter { c -> c.isDigit() || c == '.' } },
+            value = form.rental.depositAmount,
+            onValueChange = { onEdit { copy(rental = rental.copy(depositAmount = it.filter { c -> c.isDigit() || c == '.' })) } },
             label = "Deposit",
             placeholder = "0.00",
             keyboardType = KeyboardType.Decimal,
@@ -68,8 +68,8 @@ internal fun ResourcesBookingSection(state: MasterEntrySurface) {
             icon = Icons.Default.Event,
             label = "Requires booking",
             subtitle = "Customers must reserve a slot in advance",
-            checked = state.rentalRequiresBooking,
-            onCheckedChange = { state.rentalRequiresBooking = it },
+            checked = form.rental.requiresBooking,
+            onCheckedChange = { onEdit { copy(rental = rental.copy(requiresBooking = it)) } },
         )
     }
 }
@@ -78,6 +78,8 @@ internal fun ResourcesBookingSection(state: MasterEntrySurface) {
 @Composable
 private fun ResourcesBookingSectionPreview() {
     MaterialTheme {
-        ResourcesBookingSection(rememberEntryFormState().also { it.entryType = EntryType.RENTAL })
+        PreviewEntryForm(MasterEntryViewModel.State().withEntryType(EntryType.RENTAL)) { form, onEdit ->
+            ResourcesBookingSection(form, onEdit)
+        }
     }
 }

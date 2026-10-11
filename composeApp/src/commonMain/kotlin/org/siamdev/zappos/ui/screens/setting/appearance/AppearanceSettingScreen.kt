@@ -38,6 +38,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlin.math.abs
 import kotlin.math.roundToInt
+import org.siamdev.zappos.LocalSettingState
 import org.siamdev.zappos.LocalSettingVM
 import org.siamdev.zappos.data.source.local.model.FontItem
 import org.siamdev.zappos.data.source.local.model.ThemeItem
@@ -72,12 +73,13 @@ fun AppearanceSettingScreen(onNavigateBack: () -> Unit = {}) {
 @Composable
 internal fun AppearanceSettingContent(modifier: Modifier = Modifier) {
     val setting = LocalSettingVM.current
-    val themes = setting.themes
-    val activeTheme = setting.activeTheme
-    val fonts = setting.fonts
-    val activeFont = setting.activeFont
-    val accentColorHex = setting.accentColorHex
-    val isLoading = setting.isLoading
+    val state = LocalSettingState.current
+    val themes = state.theme.options
+    val activeTheme = state.theme.active
+    val fonts = state.font.options
+    val activeFont = state.font.active
+    val accentColorHex = state.appearance.accentColor
+    val isLoading = state.isLoading
 
     val activeAccentColor = accentColorHex?.let { colorFromHex(it) } ?: YellowPrimary
 

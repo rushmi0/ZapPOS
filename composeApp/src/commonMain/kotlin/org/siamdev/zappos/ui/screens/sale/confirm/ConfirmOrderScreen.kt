@@ -20,26 +20,18 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.tooling.preview.Preview
+import org.orbitmvi.orbit.compose.collectAsState
 import org.siamdev.zappos.LocalMenuVM
-import org.siamdev.zappos.LocalProgressVM
-import org.siamdev.zappos.LocalSettingVM
 import org.siamdev.zappos.ui.components.common.MaterialButton
 import org.siamdev.zappos.ui.components.common.PrimaryAmt
 import org.siamdev.zappos.ui.components.order.OrderItemCard
 import org.siamdev.zappos.ui.components.progress.ProgressBar
-import org.siamdev.zappos.ui.components.progress.ProgressSurfaceImpl
-import org.siamdev.zappos.ui.components.progress.ProgressViewModel
 import org.siamdev.zappos.ui.components.common.SecondaryAmt
 import org.siamdev.zappos.ui.components.common.WorkspaceHeader
-import org.siamdev.zappos.ui.screens.sale.MainMenuSurface
-import org.siamdev.zappos.ui.screens.sale.MainMenuSurfaceImpl
 import org.siamdev.zappos.ui.screens.sale.MainMenuViewModel
 import org.siamdev.zappos.ui.screens.sale.MenuItem
 import org.siamdev.zappos.ui.screens.sale.SaleOrderSteps
-import org.siamdev.zappos.ui.screens.setting.SettingSurfaceImpl
-import org.siamdev.zappos.ui.screens.setting.SettingViewModel
 
 @Composable
 fun ConfirmOrderScreen(
@@ -47,9 +39,19 @@ fun ConfirmOrderScreen(
     onCheckout: () -> Unit = {}
 ) {
     val menu = LocalMenuVM.current
-    val allItems = menu.items
-    val selectedKeys = menu.selectedKeys
-    val selectedItems = selectedKeys.mapNotNull { key -> allItems.firstOrNull { it.id == key } }
+    val state by menu.collectAsState()
+
+    ConfirmOrderContent(state = state, menu = menu, onBack = onBack, onCheckout = onCheckout)
+}
+
+@Composable
+private fun ConfirmOrderContent(
+    state: MainMenuViewModel.State,
+    menu: MainMenuViewModel,
+    onBack: () -> Unit,
+    onCheckout: () -> Unit
+) {
+    val selectedItems = state.selectedItems
 
     BoxWithConstraints(
         modifier = Modifier
@@ -62,6 +64,7 @@ fun ConfirmOrderScreen(
         if (isDesktop) {
             DesktopConfirmLayout(
                 items = selectedItems,
+                state = state,
                 menu = menu,
                 onBack = onBack,
                 onCheckout = onCheckout
@@ -69,6 +72,7 @@ fun ConfirmOrderScreen(
         } else {
             MobileConfirmLayout(
                 items = selectedItems,
+                state = state,
                 menu = menu,
                 onBack = onBack,
                 onCheckout = onCheckout
@@ -80,12 +84,11 @@ fun ConfirmOrderScreen(
 @Composable
 private fun MobileConfirmLayout(
     items: List<MenuItem>,
-    menu: MainMenuSurface,
+    state: MainMenuViewModel.State,
+    menu: MainMenuViewModel,
     onBack: () -> Unit,
     onCheckout: () -> Unit
 ) {
-    val progress = LocalProgressVM.current
-    SideEffect { progress.setup(SaleOrderSteps, 0) }
 
     Column(modifier = Modifier.fillMaxSize()) {
         WorkspaceHeader(
@@ -93,7 +96,7 @@ private fun MobileConfirmLayout(
             subtitle = "Sales · review order",
             onNavigateBack = onBack
         )
-        ProgressBar()
+        ProgressBar(steps = SaleOrderSteps, currentStep = 0)
 
         ConfirmSectionLabel(
             text = "ORDER ITEMS",
@@ -102,6 +105,7 @@ private fun MobileConfirmLayout(
 
         ConfirmItemList(
             items = items,
+            state = state,
             menu = menu,
             modifier = Modifier
                 .fillMaxWidth()
@@ -116,7 +120,7 @@ private fun MobileConfirmLayout(
                 text = "SUMMARY",
                 modifier = Modifier.padding(bottom = 8.dp)
             )
-            ConfirmSummaryCard(menu = menu)
+            ConfirmSummaryCard(state = state)
             Spacer(Modifier.height(12.dp))
             CheckoutButton(enabled = items.isNotEmpty(), onClick = onCheckout)
         }
@@ -128,12 +132,11 @@ private fun MobileConfirmLayout(
 @Composable
 private fun DesktopConfirmLayout(
     items: List<MenuItem>,
-    menu: MainMenuSurface,
+    state: MainMenuViewModel.State,
+    menu: MainMenuViewModel,
     onBack: () -> Unit,
     onCheckout: () -> Unit
 ) {
-    val progress = LocalProgressVM.current
-    SideEffect { progress.setup(SaleOrderSteps, 0) }
 
     Column(modifier = Modifier.fillMaxSize()) {
         WorkspaceHeader(
@@ -141,7 +144,7 @@ private fun DesktopConfirmLayout(
             subtitle = "Sales · review order",
             onNavigateBack = onBack
         )
-        ProgressBar()
+        ProgressBar(steps = SaleOrderSteps, currentStep = 0)
 
         Row(
             modifier = Modifier
@@ -163,6 +166,7 @@ private fun DesktopConfirmLayout(
         ) {
             ConfirmItemList(
                 items = items,
+                state = state,
                 menu = menu,
                 modifier = Modifier
                     .weight(1f)
@@ -175,7 +179,7 @@ private fun DesktopConfirmLayout(
                     .wrapContentHeight(),
                 verticalArrangement = Arrangement.spacedBy(0.dp)
             ) {
-                ConfirmSummaryCard(menu = menu)
+                ConfirmSummaryCard(state = state)
                 Spacer(Modifier.height(20.dp))
                 CheckoutButton(enabled = items.isNotEmpty(), onClick = onCheckout)
             }
@@ -186,7 +190,8 @@ private fun DesktopConfirmLayout(
 @Composable
 private fun ConfirmItemList(
     items: List<MenuItem>,
-    menu: MainMenuSurface,
+    state: MainMenuViewModel.State,
+    menu: MainMenuViewModel,
     modifier: Modifier = Modifier
 ) {
     Column(
@@ -229,7 +234,7 @@ private fun ConfirmItemList(
 }
 
 @Composable
-private fun ConfirmSummaryCard(menu: MainMenuSurface) {
+private fun ConfirmSummaryCard(state: MainMenuViewModel.State) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -255,13 +260,13 @@ private fun ConfirmSummaryCard(menu: MainMenuSurface) {
             )
             Column(horizontalAlignment = Alignment.End) {
                 PrimaryAmt(
-                    value = menu.totalFiat,
+                    value = state.order.totalFiat,
                     iconSize = 13.dp,
                     textStyle = MaterialTheme.typography.bodyMedium,
                     fontWeight = FontWeight.SemiBold
                 )
                 SecondaryAmt(
-                    value = menu.totalSat,
+                    value = state.order.totalSat,
                     iconSize = 12.dp,
                     textStyle = MaterialTheme.typography.bodySmall
                 )
@@ -320,37 +325,25 @@ private val previewOrderItems = listOf(
     MenuItem(11, "", "Thai Tea", "60.00", "15,000", "tea", isRecommended = true, count = 1u),
 )
 
-private fun confirmPreviewVM() =
-    MainMenuViewModel(autoLoad = false).also { it.loadItemsForPreview(previewOrderItems) }
 
 @Preview(showBackground = true, widthDp = 411, heightDp = 891)
 @Composable
 fun ConfirmOrderScreenMobilePreview() {
-    val vm = remember { confirmPreviewVM() }
-    val progressVM = remember { ProgressViewModel() }
-    val settingVM = remember { SettingViewModel() }
-
-    CompositionLocalProvider(
-        LocalMenuVM provides MainMenuSurfaceImpl(vm),
-        LocalProgressVM provides ProgressSurfaceImpl(progressVM),
-        LocalSettingVM provides SettingSurfaceImpl(settingVM)
-    ) {
-        ConfirmOrderScreen()
-    }
+    ConfirmOrderContent(
+        state = MainMenuViewModel.State().withItems(previewOrderItems),
+        menu = remember { MainMenuViewModel() },
+        onBack = {},
+        onCheckout = {}
+    )
 }
 
 @Preview(showBackground = true, widthDp = 1280, heightDp = 800)
 @Composable
 fun ConfirmOrderScreenDesktopPreview() {
-    val vm = remember { confirmPreviewVM() }
-    val progressVM = remember { ProgressViewModel() }
-    val settingVM = remember { SettingViewModel() }
-
-    CompositionLocalProvider(
-        LocalMenuVM provides MainMenuSurfaceImpl(vm),
-        LocalProgressVM provides ProgressSurfaceImpl(progressVM),
-        LocalSettingVM provides SettingSurfaceImpl(settingVM)
-    ) {
-        ConfirmOrderScreen()
-    }
+    ConfirmOrderContent(
+        state = MainMenuViewModel.State().withItems(previewOrderItems),
+        menu = remember { MainMenuViewModel() },
+        onBack = {},
+        onCheckout = {}
+    )
 }

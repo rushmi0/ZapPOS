@@ -22,15 +22,15 @@ import org.siamdev.zappos.ui.components.common.NumberUnitField
 import org.siamdev.zappos.ui.components.common.SectionCard
 import org.siamdev.zappos.ui.components.common.ToggleItem
 import org.siamdev.zappos.ui.components.picker.TimeRangeRow
-import org.siamdev.zappos.ui.screens.product.entry.EntryFormState
 import org.siamdev.zappos.ui.screens.product.entry.EntryType
-import org.siamdev.zappos.ui.screens.product.entry.MasterEntrySurface
-import org.siamdev.zappos.ui.screens.product.entry.rememberEntryFormState
+import org.siamdev.zappos.ui.screens.product.entry.EntryFormEdit
+import org.siamdev.zappos.ui.screens.product.entry.MasterEntryViewModel
+import org.siamdev.zappos.ui.screens.product.entry.PreviewEntryForm
 
 private val dayLabels = listOf("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")
 
 @Composable
-internal fun ScheduleCapacitySection(state: MasterEntrySurface) {
+internal fun ScheduleCapacitySection(form: MasterEntryViewModel.State, onEdit: EntryFormEdit) {
     SectionCard(
         icon = Icons.Default.DateRange,
         title = "Schedule & capacity",
@@ -38,15 +38,15 @@ internal fun ScheduleCapacitySection(state: MasterEntrySurface) {
     ) {
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             NumberUnitField(
-                value = state.serviceCapacity,
-                onValueChange = { state.serviceCapacity = it },
+                value = form.service.capacity,
+                onValueChange = { onEdit { copy(service = service.copy(capacity = it)) } },
                 label = "Capacity",
                 unitLabel = "people",
                 modifier = Modifier.weight(1f),
             )
             NumberUnitField(
-                value = state.serviceDuration,
-                onValueChange = { state.serviceDuration = it },
+                value = form.service.duration,
+                onValueChange = { onEdit { copy(service = service.copy(duration = it)) } },
                 label = "Duration",
                 unitLabel = "min",
                 modifier = Modifier.weight(1f),
@@ -54,10 +54,10 @@ internal fun ScheduleCapacitySection(state: MasterEntrySurface) {
         }
 
         TimeRangeRow(
-            opensValue = state.serviceOpens,
-            closesValue = state.serviceCloses,
-            onOpensChange = { state.serviceOpens = it },
-            onClosesChange = { state.serviceCloses = it },
+            opensValue = form.service.opens,
+            closesValue = form.service.closes,
+            onOpensChange = { onEdit { copy(service = service.copy(opens = it)) } },
+            onClosesChange = { onEdit { copy(service = service.copy(closes = it)) } },
             enableManualInput = false,
         )
 
@@ -68,14 +68,12 @@ internal fun ScheduleCapacitySection(state: MasterEntrySurface) {
             ) {
                 dayLabels.forEachIndexed { index, dayLabel ->
                     EntryChip(
-                        selected = index in state.activeDays,
+                        selected = index in form.service.activeDays,
                         onClick = {
-                            state.activeDays =
-                                if (index in state.activeDays) {
-                                    state.activeDays - index
-                                } else {
-                                    state.activeDays + index
-                                }
+                            onEdit {
+                                val days = service.activeDays
+                                copy(service = service.copy(activeDays = if (index in days) days - index else days + index))
+                            }
                         },
                         label = dayLabel,
                     )
@@ -84,8 +82,8 @@ internal fun ScheduleCapacitySection(state: MasterEntrySurface) {
         }
 
         EntryField(
-            value = state.instructor,
-            onValueChange = { state.instructor = it },
+            value = form.service.instructor,
+            onValueChange = { onEdit { copy(service = service.copy(instructor = it)) } },
             label = "Instructor / host",
             placeholder = "Name of the person leading the session",
         )
@@ -94,8 +92,8 @@ internal fun ScheduleCapacitySection(state: MasterEntrySurface) {
             icon = Icons.Default.Event,
             label = "Requires booking",
             subtitle = "Customers must book ahead — not walk-in",
-            checked = state.serviceRequiresBooking,
-            onCheckedChange = { state.serviceRequiresBooking = it },
+            checked = form.service.requiresBooking,
+            onCheckedChange = { onEdit { copy(service = service.copy(requiresBooking = it)) } },
         )
     }
 }
@@ -104,6 +102,8 @@ internal fun ScheduleCapacitySection(state: MasterEntrySurface) {
 @Composable
 private fun ScheduleCapacitySectionPreview() {
     MaterialTheme {
-        ScheduleCapacitySection(rememberEntryFormState().also { it.entryType = EntryType.SERVICE })
+        PreviewEntryForm(MasterEntryViewModel.State().withEntryType(EntryType.SERVICE)) { form, onEdit ->
+            ScheduleCapacitySection(form, onEdit)
+        }
     }
 }

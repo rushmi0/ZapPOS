@@ -5,29 +5,21 @@
 package org.siamdev.zappos.ui.screens.count
 
 import androidx.lifecycle.ViewModel
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.update
+import org.orbitmvi.orbit.OrbitContainer
+import org.orbitmvi.orbit.OrbitContainerHost
+import org.orbitmvi.orbit.viewmodel.orbitContainer
+import org.siamdev.zappos.ui.UiContainerSettings
 
-class CounterViewModel : ViewModel() {
+class CounterViewModel : ViewModel(), OrbitContainerHost<CounterViewModel.State, CounterViewModel.State, Nothing> {
 
     data class State(val count: Int = 0)
 
-    sealed class SideEffect
+    override val container: OrbitContainer<State, State, Nothing> =
+        orbitContainer(State(), buildSettings = UiContainerSettings)
 
-    private val _state = MutableStateFlow(State())
-    val state: StateFlow<State> = _state.asStateFlow()
+    fun plus() = intent { reduce { state.copy(count = state.count + 1) } }
 
-    fun plus() {
-        _state.update { it.copy(count = it.count + 1) }
-    }
+    fun minus() = intent { reduce { state.copy(count = state.count - 1) } }
 
-    fun minus() {
-        _state.update { it.copy(count = it.count - 1) }
-    }
-
-    fun reset() {
-        _state.value = State()
-    }
+    fun reset() = intent { reduce { State() } }
 }

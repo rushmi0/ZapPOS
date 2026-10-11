@@ -22,40 +22,27 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
-import org.siamdev.zappos.LocalProductBrowserVM
 import org.siamdev.zappos.ui.screens.sale.MenuItem
 
-interface ProductBrowser {
-    val browserState: StateFlow<BrowserState>
-    fun addItem(id: Int)
-    fun reduceItem(id: Int)
-    fun reload()
-
-    data class BrowserState(
-        val items: List<MenuItem> = emptyList(),
-        val isLoading: Boolean = false
-    )
-}
-
 @Composable
-fun ProductPanel(modifier: Modifier = Modifier) {
-    val vm = LocalProductBrowserVM.current
-    val browserState by vm.browserState.collectAsState()
-
+fun ProductPanel(
+    items: List<MenuItem>,
+    isLoading: Boolean,
+    onRefresh: () -> Unit,
+    onAddItem: (Int) -> Unit,
+    onReduceItem: (Int) -> Unit,
+    modifier: Modifier = Modifier
+) {
     var viewMode by remember { mutableStateOf(MenuViewMode.LIST) }
     var searchQuery by remember { mutableStateOf("") }
     var categoryFilter by remember { mutableStateOf<String?>(null) }
 
-    val categories by remember {
-        derivedStateOf {
-            browserState.items.map { it.category }.filter { it.isNotBlank() }.distinct().sorted()
-        }
+    val categories = remember(items) {
+        items.map { it.category }.filter { it.isNotBlank() }.distinct().sorted()
     }
-    val filteredItems by remember {
+    val filteredItems by remember(items) {
         derivedStateOf {
-            browserState.items.filter { item ->
+            items.filter { item ->
                 (categoryFilter == null || item.category == categoryFilter) &&
                         (searchQuery.isBlank() || item.name.contains(
                             searchQuery,
@@ -95,10 +82,10 @@ fun ProductPanel(modifier: Modifier = Modifier) {
                 MenuItemsContent(
                     items = filteredItems,
                     viewMode = viewMode,
-                    isLoading = browserState.isLoading,
-                    onRefresh = { vm.reload() },
-                    onAddItem = { vm.addItem(it) },
-                    onReduceItem = { vm.reduceItem(it) },
+                    isLoading = isLoading,
+                    onRefresh = onRefresh,
+                    onAddItem = onAddItem,
+                    onReduceItem = onReduceItem,
                     modifier = Modifier.fillMaxSize()
                 )
             }
@@ -106,58 +93,45 @@ fun ProductPanel(modifier: Modifier = Modifier) {
     }
 }
 
-private val mockBrowserWithItems = object : ProductBrowser {
-    override val browserState = MutableStateFlow(
-        ProductBrowser.BrowserState(
-            items = listOf(
-                MenuItem(
-                    1,
-                    "",
-                    "Mocha",
-                    "70.00",
-                    "17,500",
-                    "coffee",
-                    isRecommended = true,
-                    count = 2u
-                ),
-                MenuItem(2, "", "Latte", "70.00", "17,500", "coffee"),
-                MenuItem(
-                    3,
-                    "",
-                    "Matcha Latte",
-                    "100.00",
-                    "26,000",
-                    "matcha",
-                    isRecommended = true,
-                    count = 1u
-                ),
-                MenuItem(4, "", "Thai Tea", "60.00", "15,000", "tea"),
-                MenuItem(5, "", "Espresso", "50.00", "12,500", "coffee"),
-                MenuItem(6, "", "Americano", "60.00", "15,000", "coffee")
-            ),
-            isLoading = false
-        )
-    )
-
-    override fun addItem(id: Int) {}
-    override fun reduceItem(id: Int) {}
-    override fun reload() {}
-}
-
-private val mockBrowserLoading = object : ProductBrowser {
-    override val browserState = MutableStateFlow(ProductBrowser.BrowserState(isLoading = true))
-    override fun addItem(id: Int) {}
-    override fun reduceItem(id: Int) {}
-    override fun reload() {}
-}
+private val previewItems = listOf(
+    MenuItem(
+        1,
+        "",
+        "Mocha",
+        "70.00",
+        "17,500",
+        "coffee",
+        isRecommended = true,
+        count = 2u
+    ),
+    MenuItem(2, "", "Latte", "70.00", "17,500", "coffee"),
+    MenuItem(
+        3,
+        "",
+        "Matcha Latte",
+        "100.00",
+        "26,000",
+        "matcha",
+        isRecommended = true,
+        count = 1u
+    ),
+    MenuItem(4, "", "Thai Tea", "60.00", "15,000", "tea"),
+    MenuItem(5, "", "Espresso", "50.00", "12,500", "coffee"),
+    MenuItem(6, "", "Americano", "60.00", "15,000", "coffee")
+)
 
 @Preview(showBackground = true, widthDp = 700, heightDp = 500)
 @Composable
 fun ProductPanelListPreview() {
     MaterialTheme {
-        CompositionLocalProvider(LocalProductBrowserVM provides mockBrowserWithItems) {
-            ProductPanel(modifier = Modifier.fillMaxSize().padding(16.dp))
-        }
+        ProductPanel(
+            items = previewItems,
+            isLoading = false,
+            onRefresh = {},
+            onAddItem = {},
+            onReduceItem = {},
+            modifier = Modifier.fillMaxSize().padding(16.dp)
+        )
     }
 }
 
@@ -165,9 +139,14 @@ fun ProductPanelListPreview() {
 @Composable
 fun ProductPanelGridPreview() {
     MaterialTheme {
-        CompositionLocalProvider(LocalProductBrowserVM provides mockBrowserWithItems) {
-            ProductPanel(modifier = Modifier.fillMaxSize().padding(16.dp))
-        }
+        ProductPanel(
+            items = previewItems,
+            isLoading = false,
+            onRefresh = {},
+            onAddItem = {},
+            onReduceItem = {},
+            modifier = Modifier.fillMaxSize().padding(16.dp)
+        )
     }
 }
 
@@ -175,8 +154,13 @@ fun ProductPanelGridPreview() {
 @Composable
 fun ProductPanelLoadingPreview() {
     MaterialTheme {
-        CompositionLocalProvider(LocalProductBrowserVM provides mockBrowserLoading) {
-            ProductPanel(modifier = Modifier.fillMaxSize().padding(16.dp))
-        }
+        ProductPanel(
+            items = emptyList(),
+            isLoading = true,
+            onRefresh = {},
+            onAddItem = {},
+            onReduceItem = {},
+            modifier = Modifier.fillMaxSize().padding(16.dp)
+        )
     }
 }

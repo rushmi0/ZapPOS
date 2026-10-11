@@ -11,8 +11,6 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
-import androidx.lifecycle.viewmodel.compose.viewModel
-import org.siamdev.zappos.ui.screens.splash.SplashViewModel
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -29,8 +27,7 @@ class MainActivity : ComponentActivity() {
         val platform = getPlatform()
 
         setContent {
-            val splashVM: SplashViewModel = viewModel()
-            App(platform = platform, splashViewModel = splashVM)
+            App(platform = platform)
         }
 
     }

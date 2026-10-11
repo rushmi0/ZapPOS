@@ -20,6 +20,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.viewmodel.navigation3.rememberViewModelStoreNavEntryDecorator
 import androidx.navigation3.runtime.NavBackStack
 import androidx.navigation3.runtime.NavKey
@@ -57,8 +58,7 @@ private val SwipeBackEasing = Easing { f -> 1f - (1f - f).let { it * it * it * i
 @Composable
 fun NavigationRoot(
     platform: Platform,
-    startDestination: Route,
-    splashViewModel: SplashViewModel
+    startDestination: Route
 ) {
     val backStack: NavBackStack<NavKey> = rememberNavBackStack(
         configuration = SavedStateConfiguration {
@@ -141,12 +141,9 @@ fun NavigationRoot(
 
                         // Splash
                         is Route.Splash -> SplashScreen(
-                            viewModel = splashViewModel
-                        ) {
-                            if (splashViewModel.state.value.isReady) {
-                                backStack.add(Route.Login)
-                            }
-                        }
+                            viewModel = viewModel { SplashViewModel() },
+                            onSplashFinished = { backStack.add(Route.Login) }
+                        )
 
                         // Login
                         is Route.Login -> {

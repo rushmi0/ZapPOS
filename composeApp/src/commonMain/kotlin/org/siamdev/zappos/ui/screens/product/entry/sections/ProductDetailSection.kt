@@ -20,10 +20,10 @@ import org.siamdev.zappos.ui.components.imagepicker.ImagePickerBox
 import org.siamdev.zappos.ui.components.common.EntryField
 import org.siamdev.zappos.ui.components.common.SectionCard
 import org.siamdev.zappos.ui.components.common.ToggleItem
-import org.siamdev.zappos.ui.screens.product.entry.EntryFormState
 import org.siamdev.zappos.ui.screens.product.entry.EntryType
-import org.siamdev.zappos.ui.screens.product.entry.MasterEntrySurface
-import org.siamdev.zappos.ui.screens.product.entry.rememberEntryFormState
+import org.siamdev.zappos.ui.screens.product.entry.EntryFormEdit
+import org.siamdev.zappos.ui.screens.product.entry.MasterEntryViewModel
+import org.siamdev.zappos.ui.screens.product.entry.PreviewEntryForm
 
 private data class TypeConfig(
     val sectionTitle: String,
@@ -68,8 +68,8 @@ private fun typeConfigFor(type: EntryType): TypeConfig =
     }
 
 @Composable
-internal fun ProductDetailsSection(state: MasterEntrySurface) {
-    val config = typeConfigFor(state.entryType)
+internal fun ProductDetailsSection(form: MasterEntryViewModel.State, onEdit: EntryFormEdit) {
+    val config = typeConfigFor(form.entryType)
 
     SectionCard(
         icon = Icons.Default.Apps,
@@ -78,16 +78,16 @@ internal fun ProductDetailsSection(state: MasterEntrySurface) {
     ) {
         BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
             if (maxWidth >= 580.dp) {
-                DetailsDesktop(state, config)
+                DetailsDesktop(form, onEdit, config)
             } else {
-                DetailsMobile(state, config)
+                DetailsMobile(form, onEdit, config)
             }
         }
     }
 }
 
 @Composable
-private fun DetailsDesktop(state: MasterEntrySurface, config: TypeConfig) {
+private fun DetailsDesktop(form: MasterEntryViewModel.State, onEdit: EntryFormEdit, config: TypeConfig) {
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
 
         Row(
@@ -111,8 +111,8 @@ private fun DetailsDesktop(state: MasterEntrySurface, config: TypeConfig) {
                 verticalArrangement = Arrangement.spacedBy(5.dp),
             ) {
                 EntryField(
-                    value = state.name,
-                    onValueChange = { state.name = it },
+                    value = form.detail.name,
+                    onValueChange = { onEdit { copy(detail = detail.copy(name = it)) } },
                     label = "Name",
                     placeholder = config.namePlaceholder,
                     required = true,
@@ -122,19 +122,16 @@ private fun DetailsDesktop(state: MasterEntrySurface, config: TypeConfig) {
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
                     EntryField(
-                        value = state.category,
-                        onValueChange = {
-                            state.category = it
-                            state.subCategory = null
-                        },
+                        value = form.detail.category,
+                        onValueChange = { onEdit { withCategory(it) } },
                         label = "Category",
                         placeholder = config.categoryPlaceholder,
                         required = true,
                         modifier = Modifier.weight(1f),
                     )
                     EntryField(
-                        value = state.subCategory ?: "",
-                        onValueChange = { state.subCategory = it.ifEmpty { null } },
+                        value = form.detail.subCategory ?: "",
+                        onValueChange = { onEdit { copy(detail = detail.copy(subCategory = it.ifEmpty { null })) } },
                         label = "Sub-category",
                         optional = false,
                         modifier = Modifier.weight(1f),
@@ -142,15 +139,12 @@ private fun DetailsDesktop(state: MasterEntrySurface, config: TypeConfig) {
                 }
                 ChipRow(
                     items = config.chips,
-                    selected = state.category,
-                    onSelect = {
-                        state.category = it
-                        state.subCategory = null
-                    },
+                    selected = form.detail.category,
+                    onSelect = { onEdit { withCategory(it) } },
                 )
                 EntryField(
-                    value = state.description,
-                    onValueChange = { state.description = it },
+                    value = form.detail.description,
+                    onValueChange = { onEdit { copy(detail = detail.copy(description = it)) } },
                     label = "Description",
                     optional = true,
                     placeholder = config.descPlaceholder,
@@ -172,15 +166,15 @@ private fun DetailsDesktop(state: MasterEntrySurface, config: TypeConfig) {
                 icon = Icons.Default.Visibility,
                 label = "Available",
                 subtitle = "Shown on the menu and orderable right now",
-                checked = state.isAvailable,
-                onCheckedChange = { state.isAvailable = it },
+                checked = form.detail.isAvailable,
+                onCheckedChange = { onEdit { copy(detail = detail.copy(isAvailable = it)) } },
             )
             ToggleItem(
                 icon = Icons.Default.Star,
                 label = "Recommended",
                 subtitle = "Featured with a ★ on the menu",
-                checked = state.isRecommended,
-                onCheckedChange = { state.isRecommended = it },
+                checked = form.detail.isRecommended,
+                onCheckedChange = { onEdit { copy(detail = detail.copy(isRecommended = it)) } },
             )
         }
     }
@@ -189,47 +183,41 @@ private fun DetailsDesktop(state: MasterEntrySurface, config: TypeConfig) {
 
 // Mobile: full-width image at top, then each field stacked individually, then toggles.
 @Composable
-private fun DetailsMobile(state: MasterEntrySurface, config: TypeConfig) {
+private fun DetailsMobile(form: MasterEntryViewModel.State, onEdit: EntryFormEdit, config: TypeConfig) {
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
 
         ImagePickerBox(
             modifier = Modifier.fillMaxWidth().height(270.dp),
         )
         EntryField(
-            value = state.name,
-            onValueChange = { state.name = it },
+            value = form.detail.name,
+            onValueChange = { onEdit { copy(detail = detail.copy(name = it)) } },
             label = "Name",
             placeholder = config.namePlaceholder,
             required = true,
         )
         EntryField(
-            value = state.category,
-            onValueChange = {
-                state.category = it
-                state.subCategory = null
-            },
+            value = form.detail.category,
+            onValueChange = { onEdit { withCategory(it) } },
             label = "Category",
             placeholder = config.categoryPlaceholder,
             required = true,
         )
         EntryField(
-            value = state.subCategory ?: "",
-            onValueChange = { state.subCategory = it.ifEmpty { null } },
+            value = form.detail.subCategory ?: "",
+            onValueChange = { onEdit { copy(detail = detail.copy(subCategory = it.ifEmpty { null })) } },
             label = "Sub-category",
             placeholder = "optional",
             optional = true,
         )
         ChipRow(
             items = config.chips,
-            selected = state.category,
-            onSelect = {
-                state.category = it
-                state.subCategory = null
-            },
+            selected = form.detail.category,
+            onSelect = { onEdit { withCategory(it) } },
         )
         EntryField(
-            value = state.description,
-            onValueChange = { state.description = it },
+            value = form.detail.description,
+            onValueChange = { onEdit { copy(detail = detail.copy(description = it)) } },
             label = "Description",
             optional = true,
             placeholder = config.descPlaceholder,
@@ -241,15 +229,15 @@ private fun DetailsMobile(state: MasterEntrySurface, config: TypeConfig) {
             icon = Icons.Default.Visibility,
             label = "Available",
             subtitle = "Shown on the menu and orderable right now",
-            checked = state.isAvailable,
-            onCheckedChange = { state.isAvailable = it },
+            checked = form.detail.isAvailable,
+            onCheckedChange = { onEdit { copy(detail = detail.copy(isAvailable = it)) } },
         )
         ToggleItem(
             icon = Icons.Default.Star,
             label = "Recommended",
             subtitle = "Featured with a ★ on the menu",
-            checked = state.isRecommended,
-            onCheckedChange = { state.isRecommended = it },
+            checked = form.detail.isRecommended,
+            onCheckedChange = { onEdit { copy(detail = detail.copy(isRecommended = it)) } },
         )
     }
 }
@@ -257,16 +245,20 @@ private fun DetailsMobile(state: MasterEntrySurface, config: TypeConfig) {
 @Preview(showBackground = true, widthDp = 411, name = "Mobile · Goods")
 @Composable
 private fun PreviewMobileGoods() {
-    MaterialTheme { ProductDetailsSection(rememberEntryFormState()) }
+    MaterialTheme {
+        PreviewEntryForm { form, onEdit ->
+            ProductDetailsSection(form, onEdit)
+        }
+    }
 }
 
 @Preview(showBackground = true, widthDp = 411, name = "Mobile · Service")
 @Composable
 private fun PreviewMobileService() {
     MaterialTheme {
-        ProductDetailsSection(rememberEntryFormState().also {
-            it.entryType = EntryType.SERVICE
-        })
+        PreviewEntryForm(MasterEntryViewModel.State().withEntryType(EntryType.SERVICE)) { form, onEdit ->
+            ProductDetailsSection(form, onEdit)
+        }
     }
 }
 
@@ -274,9 +266,9 @@ private fun PreviewMobileService() {
 @Composable
 private fun PreviewMobileRental() {
     MaterialTheme {
-        ProductDetailsSection(rememberEntryFormState().also {
-            it.entryType = EntryType.RENTAL
-        })
+        PreviewEntryForm(MasterEntryViewModel.State().withEntryType(EntryType.RENTAL)) { form, onEdit ->
+            ProductDetailsSection(form, onEdit)
+        }
     }
 }
 
@@ -284,9 +276,9 @@ private fun PreviewMobileRental() {
 @Composable
 private fun PreviewTabletWithId() {
     MaterialTheme {
-        ProductDetailsSection(rememberEntryFormState().also {
-            it.productId = "PRD-0042"
-        })
+        PreviewEntryForm(MasterEntryViewModel.State(productId = "PRD-0042")) { form, onEdit ->
+            ProductDetailsSection(form, onEdit)
+        }
     }
 }
 
@@ -294,8 +286,8 @@ private fun PreviewTabletWithId() {
 @Composable
 private fun PreviewDesktopWithId() {
     MaterialTheme {
-        ProductDetailsSection(rememberEntryFormState().also {
-            it.productId = "PRD-0042"
-        })
+        PreviewEntryForm(MasterEntryViewModel.State(productId = "PRD-0042")) { form, onEdit ->
+            ProductDetailsSection(form, onEdit)
+        }
     }
 }

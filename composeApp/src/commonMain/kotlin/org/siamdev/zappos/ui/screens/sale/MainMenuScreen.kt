@@ -14,9 +14,9 @@ import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material.icons.filled.ShoppingCart
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import org.orbitmvi.orbit.compose.collectAsState
 import org.siamdev.zappos.LocalMenuVM
-import org.siamdev.zappos.LocalProductBrowserVM
-import org.siamdev.zappos.LocalSettingVM
+import org.siamdev.zappos.LocalSettingState
 import org.siamdev.zappos.ui.components.common.CurrencyCodeIcon
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -37,8 +37,6 @@ import org.siamdev.zappos.ui.components.order.OrderItemCard
 import org.siamdev.zappos.ui.components.order.OrderPanel
 import org.siamdev.zappos.ui.components.product.ProductPanel
 import org.siamdev.zappos.ui.components.sheet.SlideBottomSheet
-import org.siamdev.zappos.ui.screens.setting.SettingSurfaceImpl
-import org.siamdev.zappos.ui.screens.setting.SettingViewModel
 import org.siamdev.zappos.theme.ThemeMode
 import org.siamdev.zappos.theme.ZapposTheme
 
@@ -49,11 +47,23 @@ fun MainMenuScreen(
     onCheckout: () -> Unit = {}
 ) {
     val menu = LocalMenuVM.current
+    val state by menu.collectAsState()
 
-    LaunchedEffect(Unit) {
-        menu.ensureLoaded()
-    }
+    MainMenuContent(
+        state = state,
+        menu = menu,
+        onOpenDrawer = onOpenDrawer,
+        onCheckout = onCheckout
+    )
+}
 
+@Composable
+private fun MainMenuContent(
+    state: MainMenuViewModel.State,
+    menu: MainMenuViewModel,
+    onOpenDrawer: () -> Unit,
+    onCheckout: () -> Unit
+) {
     BoxWithConstraints(
         modifier = Modifier
             .fillMaxSize()
@@ -63,14 +73,16 @@ fun MainMenuScreen(
 
         if (isDesktop) {
             DesktopMenuLayout(
+                state = state,
                 menu = menu,
                 onOpenDrawer = onOpenDrawer,
                 onCheckout = onCheckout
             )
         } else {
             MobileMenuLayout(
+                state = state,
                 menu = menu,
-                viewMode = menu.viewMode,
+                viewMode = state.viewMode,
                 onViewModeChange = { menu.setViewMode(it) },
                 onOpenDrawer = onOpenDrawer,
                 onCheckout = onCheckout
@@ -82,7 +94,8 @@ fun MainMenuScreen(
 
 @Composable
 private fun DesktopMenuLayout(
-    menu: MainMenuSurface,
+    state: MainMenuViewModel.State,
+    menu: MainMenuViewModel,
     onOpenDrawer: () -> Unit,
     onCheckout: () -> Unit
 ) {
@@ -114,6 +127,11 @@ private fun DesktopMenuLayout(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 ProductPanel(
+                    items = state.catalog.items,
+                    isLoading = state.isLoading,
+                    onRefresh = { menu.reloadProductsData() },
+                    onAddItem = { menu.addItem(it) },
+                    onReduceItem = { menu.reduceItem(it) },
                     modifier = Modifier
                         .weight(1f)
                         .fillMaxHeight()
@@ -150,10 +168,10 @@ private fun DesktopMenuLayout(
                 }
 
                 OrderPanel(
-                    selectedKeys = menu.selectedKeys,
-                    items = menu.items,
-                    totalFiat = menu.totalFiat,
-                    totalSat = menu.totalSat,
+                    selectedKeys = state.order.selectedKeys,
+                    items = state.catalog.items,
+                    totalFiat = state.order.totalFiat,
+                    totalSat = state.order.totalSat,
                     onAddItem = { menu.addItem(it) },
                     onReduceItem = { menu.reduceItem(it) },
                     onCountChange = { id, count -> menu.setItemCount(id, count) },
@@ -171,20 +189,21 @@ private fun DesktopMenuLayout(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun MobileMenuLayout(
-    menu: MainMenuSurface,
+    state: MainMenuViewModel.State,
+    menu: MainMenuViewModel,
     viewMode: MenuViewMode,
     onViewModeChange: (MenuViewMode) -> Unit,
     onOpenDrawer: () -> Unit,
     onCheckout: () -> Unit
 ) {
-    val setting = LocalSettingVM.current
-    val primaryCode = setting.primaryCurrency?.code ?: "THB"
-    val secondaryCode = setting.secondaryCurrency?.code ?: "SATS"
-    val showSecondary = setting.showSecondaryCurrency
+    val setting = LocalSettingState.current
+    val primaryCode = setting.currency.primaryCode
+    val secondaryCode = setting.currency.secondaryCode
+    val showSecondary = setting.currency.showSecondary
 
-    val selectedKeys = menu.selectedKeys
-    val isLoading = menu.isLoading
-    val items = menu.items
+    val selectedKeys = state.order.selectedKeys
+    val isLoading = state.isLoading
+    val items = state.catalog.items
 
     var searchQuery by remember { mutableStateOf("") }
     var categoryFilter by remember { mutableStateOf<String?>(null) }
@@ -251,7 +270,7 @@ private fun MobileMenuLayout(
                                 tint = MaterialTheme.colorScheme.onSurface
                             )
                             Text(
-                                menu.totalFiat,
+                                state.order.totalFiat,
                                 style = MaterialTheme.typography.titleLarge,
                                 color = MaterialTheme.colorScheme.onSurface
                             )
@@ -268,7 +287,7 @@ private fun MobileMenuLayout(
                                     tint = Color(0xFFFFB700)
                                 )
                                 Text(
-                                    menu.totalSat,
+                                    state.order.totalSat,
                                     style = MaterialTheme.typography.titleMedium,
                                     color = MaterialTheme.colorScheme.onSurface
                                 )
@@ -358,24 +377,17 @@ private val previewItems = listOf(
     MenuItem(8, "", "Flat White", "80.00", "20,000", "coffee")
 )
 
-private fun previewVM() = MainMenuViewModel(autoLoad = false).also {
-    it.loadItemsForPreview(previewItems)
-}
 
 @Preview(showBackground = true, widthDp = 411, heightDp = 891)
 @Composable
 fun MainMenuScreenPreview() {
     ZapposTheme(themeMode = ThemeMode.LIGHT) {
-        val vm = remember { previewVM() }
-        val settingVM = remember { SettingViewModel() }
-
-        CompositionLocalProvider(
-            LocalMenuVM provides MainMenuSurfaceImpl(vm),
-            LocalProductBrowserVM provides vm,
-            LocalSettingVM provides SettingSurfaceImpl(settingVM)
-        ) {
-            MainMenuScreen()
-        }
+        MainMenuContent(
+            state = MainMenuViewModel.State().withItems(previewItems),
+            menu = remember { MainMenuViewModel() },
+            onOpenDrawer = {},
+            onCheckout = {}
+        )
     }
 }
 
@@ -383,15 +395,11 @@ fun MainMenuScreenPreview() {
 @Composable
 fun MainMenuScreenDesktopPreview() {
     ZapposTheme(themeMode = ThemeMode.LIGHT) {
-        val vm = remember { previewVM() }
-        val settingVM = remember { SettingViewModel() }
-
-        CompositionLocalProvider(
-            LocalMenuVM provides MainMenuSurfaceImpl(vm),
-            LocalProductBrowserVM provides vm,
-            LocalSettingVM provides SettingSurfaceImpl(settingVM)
-        ) {
-            MainMenuScreen()
-        }
+        MainMenuContent(
+            state = MainMenuViewModel.State().withItems(previewItems),
+            menu = remember { MainMenuViewModel() },
+            onOpenDrawer = {},
+            onCheckout = {}
+        )
     }
 }

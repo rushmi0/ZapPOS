@@ -11,12 +11,10 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import org.siamdev.zappos.LocalSettingVM
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -26,8 +24,6 @@ import androidx.compose.ui.tooling.preview.Preview
 import org.siamdev.zappos.ui.components.common.PrimaryAmt
 import org.siamdev.zappos.ui.components.common.SecondaryAmt
 import org.siamdev.zappos.ui.screens.sale.checkout.formatDouble
-import org.siamdev.zappos.ui.screens.setting.SettingSurfaceImpl
-import org.siamdev.zappos.ui.screens.setting.SettingViewModel
 
 
 @Composable
@@ -182,74 +178,62 @@ private fun VatChip(rate: Float, isSelected: Boolean, onClick: () -> Unit) {
 @Preview(showBackground = true, widthDp = 390, heightDp = 300)
 @Composable
 fun OrderSummaryCardNoVatPreview() {
-    val settingVM = remember { SettingViewModel() }
-    CompositionLocalProvider(LocalSettingVM provides SettingSurfaceImpl(settingVM)) {
-        MaterialTheme {
-            OrderSummaryCard(
-                subtotalFiat = "845.00",
-                subtotalSat = "214,250",
-                taxPercent = 0f,
-                onTaxChange = {},
-                modifier = Modifier.padding(16.dp)
-            )
-        }
+    MaterialTheme {
+        OrderSummaryCard(
+            subtotalFiat = "845.00",
+            subtotalSat = "214,250",
+            taxPercent = 0f,
+            onTaxChange = {},
+            modifier = Modifier.padding(16.dp)
+        )
     }
 }
 
 @Preview(showBackground = true, widthDp = 390, heightDp = 300)
 @Composable
 fun OrderSummaryCard7PercentPreview() {
-    val settingVM = remember { SettingViewModel() }
-    CompositionLocalProvider(LocalSettingVM provides SettingSurfaceImpl(settingVM)) {
-        MaterialTheme {
-            OrderSummaryCard(
-                subtotalFiat = "845.00",
-                subtotalSat = "214,250",
-                taxPercent = 7f,
-                onTaxChange = {},
-                modifier = Modifier.padding(16.dp)
-            )
-        }
+    MaterialTheme {
+        OrderSummaryCard(
+            subtotalFiat = "845.00",
+            subtotalSat = "214,250",
+            taxPercent = 7f,
+            onTaxChange = {},
+            modifier = Modifier.padding(16.dp)
+        )
     }
 }
 
 @Preview(showBackground = true, widthDp = 390, heightDp = 300)
 @Composable
 fun OrderSummaryCard10PercentPreview() {
-    val settingVM = remember { SettingViewModel() }
-    CompositionLocalProvider(LocalSettingVM provides SettingSurfaceImpl(settingVM)) {
-        MaterialTheme {
-            OrderSummaryCard(
-                subtotalFiat = "845.00",
-                subtotalSat = "214,250",
-                taxPercent = 10f,
-                onTaxChange = {},
-                modifier = Modifier.padding(16.dp)
-            )
-        }
+    MaterialTheme {
+        OrderSummaryCard(
+            subtotalFiat = "845.00",
+            subtotalSat = "214,250",
+            taxPercent = 10f,
+            onTaxChange = {},
+            modifier = Modifier.padding(16.dp)
+        )
     }
 }
 
 @Preview(showBackground = true)
 @Composable
 fun SecondaryAmtCryptoPreview() {
-    val settingVM = remember { SettingViewModel() }
-    CompositionLocalProvider(LocalSettingVM provides SettingSurfaceImpl(settingVM)) {
-        MaterialTheme {
-            Column(
-                modifier = Modifier.padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                Text(
-                    "Secondary Amount (SATS/BTC Style)",
-                    style = MaterialTheme.typography.labelSmall
-                )
-                SecondaryAmt(
-                    value = "214,250",
-                    iconSize = 18.dp,
-                    textStyle = MaterialTheme.typography.titleMedium
-                )
-            }
+    MaterialTheme {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            Text(
+                "Secondary Amount (SATS/BTC Style)",
+                style = MaterialTheme.typography.labelSmall
+            )
+            SecondaryAmt(
+                value = "214,250",
+                iconSize = 18.dp,
+                textStyle = MaterialTheme.typography.titleMedium
+            )
         }
     }
 }
@@ -257,17 +241,14 @@ fun SecondaryAmtCryptoPreview() {
 @Preview(showBackground = true, widthDp = 390, heightDp = 300)
 @Composable
 fun OrderSummaryCardInteractivePreview() {
-    val settingVM = remember { SettingViewModel() }
-    CompositionLocalProvider(LocalSettingVM provides SettingSurfaceImpl(settingVM)) {
-        MaterialTheme {
-            var tax by remember { mutableFloatStateOf(7f) }
-            OrderSummaryCard(
-                subtotalFiat = "845.00",
-                subtotalSat = "214,250",
-                taxPercent = tax,
-                onTaxChange = { tax = it },
-                modifier = Modifier.padding(16.dp)
-            )
-        }
+    MaterialTheme {
+        var tax by remember { mutableFloatStateOf(7f) }
+        OrderSummaryCard(
+            subtotalFiat = "845.00",
+            subtotalSat = "214,250",
+            taxPercent = tax,
+            onTaxChange = { tax = it },
+            modifier = Modifier.padding(16.dp)
+        )
     }
 }

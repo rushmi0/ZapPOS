@@ -25,7 +25,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.tooling.preview.Preview
-import org.siamdev.zappos.LocalSettingVM
+import org.siamdev.zappos.LocalSettingState
 import org.siamdev.zappos.ui.components.common.CurrencyCodeIcon
 import org.siamdev.zappos.ui.components.common.WorkspaceHeader
 
@@ -63,7 +63,7 @@ fun HomeScreen(
 
 @Composable
 private fun MobileHomeContent(onNavigateToMenu: () -> Unit) {
-    val primaryCode = LocalSettingVM.current.primaryCurrency?.code ?: "THB"
+    val primaryCode = LocalSettingState.current.currency.primaryCode
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -102,7 +102,7 @@ private fun MobileHomeContent(onNavigateToMenu: () -> Unit) {
 
 @Composable
 private fun DesktopHomeContent(onNavigateToMenu: () -> Unit) {
-    val primaryCode = LocalSettingVM.current.primaryCurrency?.code ?: "THB"
+    val primaryCode = LocalSettingState.current.currency.primaryCode
     Row(
         modifier = Modifier
             .fillMaxSize()

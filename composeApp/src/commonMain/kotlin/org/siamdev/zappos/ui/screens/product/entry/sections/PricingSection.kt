@@ -33,18 +33,18 @@ import org.siamdev.zappos.ui.components.common.NumberUnitField
 import org.siamdev.zappos.ui.components.common.SectionCard
 import org.siamdev.zappos.ui.components.common.TextIconButton
 import org.siamdev.zappos.ui.components.common.ToggleItem
-import org.siamdev.zappos.ui.screens.product.entry.EntryFormState
 import org.siamdev.zappos.ui.screens.product.entry.EntryType
-import org.siamdev.zappos.ui.screens.product.entry.MasterEntrySurface
-import org.siamdev.zappos.ui.screens.product.entry.rememberEntryFormState
+import org.siamdev.zappos.ui.screens.product.entry.EntryFormEdit
+import org.siamdev.zappos.ui.screens.product.entry.MasterEntryViewModel
+import org.siamdev.zappos.ui.screens.product.entry.PreviewEntryForm
 import org.siamdev.zappos.utils.formatAmount
 
 @Composable
-internal fun PricingSection(state: MasterEntrySurface) {
+internal fun PricingSection(form: MasterEntryViewModel.State, onEdit: EntryFormEdit) {
     val margin =
-        remember(state.price, state.costPrice) {
-            val p = state.price.toDoubleOrNull() ?: 0.0
-            val c = state.costPrice.toDoubleOrNull() ?: 0.0
+        remember(form.pricing.price, form.pricing.costPrice) {
+            val p = form.pricing.price.toDoubleOrNull() ?: 0.0
+            val c = form.pricing.costPrice.toDoubleOrNull() ?: 0.0
             if (p > 0.0) (((p - c) / p) * 100.0).formatAmount(0) + "%" else ""
         }
 
@@ -55,8 +55,8 @@ internal fun PricingSection(state: MasterEntrySurface) {
     ) {
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             EntryField(
-                value = state.price,
-                onValueChange = { state.price = it.filter { c -> c.isDigit() || c == '.' } },
+                value = form.pricing.price,
+                onValueChange = { onEdit { copy(pricing = pricing.copy(price = it.filter { c -> c.isDigit() || c == '.' })) } },
                 label = "Price",
                 placeholder = "0.00",
                 required = true,
@@ -65,8 +65,8 @@ internal fun PricingSection(state: MasterEntrySurface) {
                 modifier = Modifier.weight(1f),
             )
             EntryField(
-                value = state.unit,
-                onValueChange = { state.unit = it },
+                value = form.pricing.unit,
+                onValueChange = { onEdit { copy(pricing = pricing.copy(unit = it)) } },
                 label = "Unit",
                 placeholder = "type your own",
                 required = true,
@@ -76,40 +76,40 @@ internal fun PricingSection(state: MasterEntrySurface) {
         }
 
         ChipRow(
-            items = state.unitOptions,
-            selected = state.unit,
-            onSelect = { state.unit = it },
+            items = form.unitOptions,
+            selected = form.pricing.unit,
+            onSelect = { onEdit { copy(pricing = pricing.copy(unit = it)) } },
         )
 
-        if (state.entryType == EntryType.GOODS) {
+        if (form.entryType == EntryType.GOODS) {
             ToggleItem(
                 icon = Icons.Default.SwapHoriz,
                 label = "Open / variable price",
                 subtitle = "Cashier enters the amount at checkout — e.g. sold by weight",
-                checked = state.openPrice,
-                onCheckedChange = { state.openPrice = it },
+                checked = form.pricing.openPrice,
+                onCheckedChange = { onEdit { copy(pricing = pricing.copy(openPrice = it)) } },
             )
         }
 
-        if (state.entryType == EntryType.SERVICE) {
+        if (form.entryType == EntryType.SERVICE) {
             ChargedBySelector(
-                selected = state.chargedBy,
-                onSelect = { state.chargedBy = it },
+                selected = form.pricing.chargedBy,
+                onSelect = { onEdit { copy(pricing = pricing.copy(chargedBy = it)) } },
             )
         }
 
-        if (state.entryType == EntryType.RENTAL) {
+        if (form.entryType == EntryType.RENTAL) {
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 NumberUnitField(
-                    value = state.bookingDuration,
-                    onValueChange = { state.bookingDuration = it },
+                    value = form.pricing.bookingDuration,
+                    onValueChange = { onEdit { copy(pricing = pricing.copy(bookingDuration = it)) } },
                     label = "Booking duration",
                     unitLabel = "min / slot",
                     modifier = Modifier.weight(1f),
                 )
                 NumberUnitField(
-                    value = state.minBooking,
-                    onValueChange = { state.minBooking = it },
+                    value = form.pricing.minBooking,
+                    onValueChange = { onEdit { copy(pricing = pricing.copy(minBooking = it)) } },
                     label = "Min. booking",
                     unitLabel = "slot(s)",
                     modifier = Modifier.weight(1f),
@@ -121,19 +121,19 @@ internal fun PricingSection(state: MasterEntrySurface) {
             icon = Icons.Default.AccountBalance,
             label = "Charge VAT on this item",
             subtitle = "Applies the store VAT rate (7%) at checkout",
-            checked = state.chargeVat,
-            onCheckedChange = { state.chargeVat = it },
+            checked = form.pricing.chargeVat,
+            onCheckedChange = { onEdit { copy(pricing = pricing.copy(chargeVat = it)) } },
         )
 
         TextIconButton(
-            icon = if (state.showCostPrice) Icons.Default.Remove else Icons.Default.Add,
-            text = if (state.showCostPrice) "Hide cost price" else "Add cost price (track margin)",
-            onClick = { state.showCostPrice = !state.showCostPrice },
+            icon = if (form.showCostPrice) Icons.Default.Remove else Icons.Default.Add,
+            text = if (form.showCostPrice) "Hide cost price" else "Add cost price (track margin)",
+            onClick = { onEdit { copy(showCostPrice = !showCostPrice) } },
             fontWeight = FontWeight.Medium,
         )
 
         AnimatedVisibility(
-            visible = state.showCostPrice,
+            visible = form.showCostPrice,
             enter = fadeIn() + expandVertically(),
             exit = fadeOut() + shrinkVertically(),
         ) {
@@ -156,13 +156,13 @@ internal fun PricingSection(state: MasterEntrySurface) {
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     EntryField(
-                        value = state.costPrice,
-                        onValueChange = { state.costPrice = it.filter { c -> c.isDigit() || c == '.' } },
+                        value = form.pricing.costPrice,
+                        onValueChange = { onEdit { copy(pricing = pricing.copy(costPrice = it.filter { c -> c.isDigit() || c == '.' })) } },
                         label = "Cost price",
                         placeholder = "0.00",
                         keyboardType = KeyboardType.Decimal,
                         prefix = { Text("฿") },
-                        suffix = { Text("/ ${state.unit.ifEmpty { "unit" }}") },
+                        suffix = { Text("/ ${form.pricing.unit.ifEmpty { "unit" }}") },
                         modifier = Modifier.weight(1f),
                     )
                     EntryField(
@@ -225,17 +225,29 @@ private fun ChargedBySelector(
 @Preview(showBackground = true, widthDp = 411, name = "Pricing · Goods")
 @Composable
 private fun PricingSectionGoodsPreview() {
-    MaterialTheme { PricingSection(rememberEntryFormState()) }
+    MaterialTheme {
+        PreviewEntryForm { form, onEdit ->
+            PricingSection(form, onEdit)
+        }
+    }
 }
 
 @Preview(showBackground = true, widthDp = 411, name = "Pricing · Service")
 @Composable
 private fun PricingSectionServicePreview() {
-    MaterialTheme { PricingSection(rememberEntryFormState().also { it.entryType = EntryType.SERVICE }) }
+    MaterialTheme {
+        PreviewEntryForm(MasterEntryViewModel.State().withEntryType(EntryType.SERVICE)) { form, onEdit ->
+            PricingSection(form, onEdit)
+        }
+    }
 }
 
 @Preview(showBackground = true, widthDp = 411, name = "Pricing · Rental")
 @Composable
 private fun PricingSectionRentalPreview() {
-    MaterialTheme { PricingSection(rememberEntryFormState().also { it.entryType = EntryType.RENTAL }) }
+    MaterialTheme {
+        PreviewEntryForm(MasterEntryViewModel.State().withEntryType(EntryType.RENTAL)) { form, onEdit ->
+            PricingSection(form, onEdit)
+        }
+    }
 }

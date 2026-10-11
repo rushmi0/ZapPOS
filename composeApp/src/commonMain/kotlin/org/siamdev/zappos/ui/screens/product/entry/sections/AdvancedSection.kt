@@ -18,33 +18,33 @@ import org.siamdev.zappos.ui.components.common.EntryField
 import org.siamdev.zappos.ui.components.common.LabeledChipRow
 import org.siamdev.zappos.ui.components.common.NumberUnitField
 import org.siamdev.zappos.ui.components.common.SectionCard
-import org.siamdev.zappos.ui.screens.product.entry.EntryFormState
-import org.siamdev.zappos.ui.screens.product.entry.MasterEntrySurface
-import org.siamdev.zappos.ui.screens.product.entry.rememberEntryFormState
+import org.siamdev.zappos.ui.screens.product.entry.EntryFormEdit
+import org.siamdev.zappos.ui.screens.product.entry.MasterEntryViewModel
+import org.siamdev.zappos.ui.screens.product.entry.PreviewEntryForm
 
 private val orderDestinations = listOf("None", "Kitchen", "Bar", "Counter", "Grill")
 
 @Composable
-internal fun AdvancedSection(state: MasterEntrySurface) {
+internal fun AdvancedSection(form: MasterEntryViewModel.State, onEdit: EntryFormEdit) {
     SectionCard(
         icon = Icons.Default.Settings,
         title = "Advanced",
         subtitle = "SKU, routing and display order",
         badge = "OPTIONAL",
-        expanded = state.advancedExpanded,
-        onExpandChange = { state.advancedExpanded = it },
+        expanded = form.advancedExpanded,
+        onExpandChange = { onEdit { copy(advancedExpanded = it) } },
     ) {
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             EntryField(
-                value = state.sku,
-                onValueChange = { state.sku = it },
+                value = form.advanced.sku,
+                onValueChange = { onEdit { copy(advanced = advanced.copy(sku = it)) } },
                 label = "SKU",
                 placeholder = "e.g. BEV-001",
                 modifier = Modifier.weight(1f),
             )
             EntryField(
-                value = state.barcode,
-                onValueChange = { state.barcode = it },
+                value = form.advanced.barcode,
+                onValueChange = { onEdit { copy(advanced = advanced.copy(barcode = it)) } },
                 label = "Barcode",
                 placeholder = "Scan or type",
                 keyboardType = KeyboardType.Number,
@@ -55,14 +55,14 @@ internal fun AdvancedSection(state: MasterEntrySurface) {
         LabeledChipRow(label = "Send order to") {
             ChipRow(
                 items = orderDestinations,
-                selected = state.sendOrderTo,
-                onSelect = { state.sendOrderTo = it },
+                selected = form.advanced.sendOrderTo,
+                onSelect = { onEdit { copy(advanced = advanced.copy(sendOrderTo = it)) } },
             )
         }
 
         NumberUnitField(
-            value = state.displayOrder,
-            onValueChange = { state.displayOrder = it },
+            value = form.advanced.displayOrder,
+            onValueChange = { onEdit { copy(advanced = advanced.copy(displayOrder = it)) } },
             label = "Display order",
             unitLabel = "position",
         )
@@ -72,11 +72,19 @@ internal fun AdvancedSection(state: MasterEntrySurface) {
 @Preview(showBackground = true, widthDp = 411, name = "Advanced · collapsed")
 @Composable
 private fun AdvancedSectionCollapsedPreview() {
-    MaterialTheme { AdvancedSection(rememberEntryFormState()) }
+    MaterialTheme {
+        PreviewEntryForm { form, onEdit ->
+            AdvancedSection(form, onEdit)
+        }
+    }
 }
 
 @Preview(showBackground = true, widthDp = 411, name = "Advanced · expanded")
 @Composable
 private fun AdvancedSectionExpandedPreview() {
-    MaterialTheme { AdvancedSection(rememberEntryFormState().also { it.advancedExpanded = true }) }
+    MaterialTheme {
+        PreviewEntryForm(MasterEntryViewModel.State(advancedExpanded = true)) { form, onEdit ->
+            AdvancedSection(form, onEdit)
+        }
+    }
 }

@@ -30,9 +30,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -41,7 +39,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import org.siamdev.zappos.LocalProgressVM
 
 private val DotContainerSize = 22.dp
 private val DotActiveSize = 20.dp
@@ -50,12 +47,10 @@ private val LineHeight = 2.dp
 
 @Composable
 fun ProgressBar(
+    steps: List<String>,
+    currentStep: Int,
     modifier: Modifier = Modifier
 ) {
-    val progress = LocalProgressVM.current
-    val steps = progress.steps
-    val currentStep = progress.currentStep
-
     if (steps.isEmpty()) return
 
     val animatedStep by animateFloatAsState(
@@ -202,12 +197,7 @@ private fun ProgressBarPreview() {
     MaterialTheme {
         Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
             steps.indices.forEach { step ->
-                val vm = remember(step) {
-                    ProgressViewModel().also { it.setup(steps, step) }
-                }
-                CompositionLocalProvider(LocalProgressVM provides ProgressSurfaceImpl(vm)) {
-                    ProgressBar()
-                }
+                ProgressBar(steps = steps, currentStep = step)
             }
         }
     }

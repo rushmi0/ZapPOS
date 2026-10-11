@@ -14,7 +14,6 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.TouchApp
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -23,15 +22,12 @@ import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import org.siamdev.zappos.LocalSettingVM
 import org.siamdev.zappos.ui.components.common.WorkspaceHeader
 import org.siamdev.zappos.ui.components.gesture.SwipeAnimatedContent
 import org.siamdev.zappos.data.source.MasterEvent
 import org.siamdev.zappos.ui.screens.product.goods.sections.MonitorStockTabContent
 import org.siamdev.zappos.ui.screens.product.goods.sections.ProductDetailPanel
 import org.siamdev.zappos.ui.screens.product.goods.sections.ProductListPane
-import org.siamdev.zappos.ui.screens.setting.SettingSurfaceImpl
-import org.siamdev.zappos.ui.screens.setting.SettingViewModel
 
 /**
  * Root screen for the product catalogue.
@@ -288,17 +284,15 @@ private fun EmptyDetailState() {
 @Preview(showBackground = true, widthDp = 411, heightDp = 891, name = "Mobile · List")
 @Composable
 private fun MobileListPreview() {
-    CompositionLocalProvider(LocalSettingVM provides SettingSurfaceImpl(SettingViewModel())) {
-        MobileLayout(
-            products = sampleProducts(),
-            selectedId = null,
-            selected = null,
-            onSelect = {},
-            onBack = {},
-            onOpenDrawer = {},
-            onEdit = {},
-        )
-    }
+    MobileLayout(
+        products = sampleProducts(),
+        selectedId = null,
+        selected = null,
+        onSelect = {},
+        onBack = {},
+        onOpenDrawer = {},
+        onEdit = {},
+    )
 }
 
 @Preview(
@@ -311,17 +305,15 @@ private fun MobileListPreview() {
 private fun MobileDetailProductPreview() {
     val products = sampleProducts()
     val selected = products.first()
-    CompositionLocalProvider(LocalSettingVM provides SettingSurfaceImpl(SettingViewModel())) {
-        MobileLayout(
-            products = products,
-            selectedId = selected.id,
-            selected = selected,
-            onSelect = {},
-            onBack = {},
-            onOpenDrawer = {},
-            onEdit = {},
-        )
-    }
+    MobileLayout(
+        products = products,
+        selectedId = selected.id,
+        selected = selected,
+        onSelect = {},
+        onBack = {},
+        onOpenDrawer = {},
+        onEdit = {},
+    )
 }
 
 @Preview(
@@ -333,15 +325,13 @@ private fun MobileDetailProductPreview() {
 @Composable
 private fun MobileDetailMonitorPreview() {
     val selected = sampleProducts().first()
-    CompositionLocalProvider(LocalSettingVM provides SettingSurfaceImpl(SettingViewModel())) {
-        Column(
-            Modifier
-                .fillMaxSize()
-                .background(MaterialTheme.colorScheme.background),
-        ) {
-            WorkspaceHeader(title = "Information", onNavigateBack = {})
-            MonitorStockTabContent(product = selected)
-        }
+    Column(
+        Modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background),
+    ) {
+        WorkspaceHeader(title = "Information", onNavigateBack = {})
+        MonitorStockTabContent(product = selected)
     }
 }
 
@@ -354,24 +344,20 @@ private fun MobileDetailMonitorPreview() {
 @Composable
 private fun MobileDetailOutOfStockPreview() {
     val selected = sampleProducts().first { it.stockQty == 0 }
-    CompositionLocalProvider(LocalSettingVM provides SettingSurfaceImpl(SettingViewModel())) {
-        Column(
-            Modifier
-                .fillMaxSize()
-                .background(MaterialTheme.colorScheme.background),
-        ) {
-            WorkspaceHeader(title = "Information", onNavigateBack = {})
-            MonitorStockTabContent(product = selected)
-        }
+    Column(
+        Modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background),
+    ) {
+        WorkspaceHeader(title = "Information", onNavigateBack = {})
+        MonitorStockTabContent(product = selected)
     }
 }
 
 @Preview(showBackground = true, widthDp = 1280, heightDp = 800, name = "Desktop · No Selection")
 @Composable
 private fun DesktopNoSelectionPreview() {
-    CompositionLocalProvider(LocalSettingVM provides SettingSurfaceImpl(SettingViewModel())) {
-        ProductListScreen()
-    }
+    ProductListScreen()
 }
 
 @Preview(
@@ -383,16 +369,14 @@ private fun DesktopNoSelectionPreview() {
 private fun DesktopWithProductDetailSelectionPreview() {
     val products = sampleProducts()
     val selected = products.first()
-    CompositionLocalProvider(LocalSettingVM provides SettingSurfaceImpl(SettingViewModel())) {
-        DesktopLayout(
-            products = products,
-            selectedId = selected.id,
-            selected = selected,
-            onSelect = {},
-            onOpenDrawer = {},
-            onEdit = {},
-        )
-    }
+    DesktopLayout(
+        products = products,
+        selectedId = selected.id,
+        selected = selected,
+        onSelect = {},
+        onOpenDrawer = {},
+        onEdit = {},
+    )
 }
 
 @Preview(
@@ -404,15 +388,13 @@ private fun DesktopWithProductDetailSelectionPreview() {
 private fun DesktopWithMonitorAndStockSelectionPreview() {
     val products = sampleProducts()
     val selected = products.first()
-    CompositionLocalProvider(LocalSettingVM provides SettingSurfaceImpl(SettingViewModel())) {
-        DesktopLayout(
-            products = products,
-            selectedId = selected.id,
-            selected = selected,
-            onSelect = {},
-            onOpenDrawer = {},
-            onEdit = {},
-            initialTab = DetailTab.MONITOR_STOCK,
-        )
-    }
+    DesktopLayout(
+        products = products,
+        selectedId = selected.id,
+        selected = selected,
+        onSelect = {},
+        onOpenDrawer = {},
+        onEdit = {},
+        initialTab = DetailTab.MONITOR_STOCK,
+    )
 }

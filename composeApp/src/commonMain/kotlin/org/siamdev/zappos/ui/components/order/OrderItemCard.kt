@@ -34,12 +34,9 @@ import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.tooling.preview.Preview
-import org.siamdev.zappos.LocalSettingVM
 import org.siamdev.zappos.ui.components.common.PrimaryAmt
 import org.siamdev.zappos.ui.components.common.SecondaryAmt
 import org.siamdev.zappos.ui.screens.sale.MenuItem
-import org.siamdev.zappos.ui.screens.setting.SettingSurfaceImpl
-import org.siamdev.zappos.ui.screens.setting.SettingViewModel
 
 @Composable
 fun OrderItemCard(
@@ -218,21 +215,18 @@ fun OrderItemCard(
 @Preview(showBackground = true)
 @Composable
 fun OrderItemCardPreview() {
-    val settingVM = remember { SettingViewModel() }
-    CompositionLocalProvider(LocalSettingVM provides SettingSurfaceImpl(settingVM)) {
-        MaterialTheme {
-            OrderItemCard(
-                item = MenuItem(
-                    id = 1,
-                    imageUrl = "",
-                    name = "Matcha Latte",
-                    priceBaht = "100.00",
-                    priceSat = "26,000",
-                    count = 2u
-                ),
-                onAddClick = {},
-                onReduceClick = {}
-            )
-        }
+    MaterialTheme {
+        OrderItemCard(
+            item = MenuItem(
+                id = 1,
+                imageUrl = "",
+                name = "Matcha Latte",
+                priceBaht = "100.00",
+                priceSat = "26,000",
+                count = 2u
+            ),
+            onAddClick = {},
+            onReduceClick = {}
+        )
     }
 }

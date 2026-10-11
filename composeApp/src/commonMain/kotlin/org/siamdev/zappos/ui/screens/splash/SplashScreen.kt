@@ -9,15 +9,13 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import org.orbitmvi.orbit.compose.collectSideEffect
 import org.jetbrains.compose.resources.painterResource
 import androidx.compose.ui.tooling.preview.Preview
 import zappos.composeapp.generated.resources.Res
@@ -30,11 +28,9 @@ fun SplashScreen(
     viewModel: SplashViewModel,
     onSplashFinished: () -> Unit = {}
 ) {
-    LaunchedEffect(Unit) {
-        viewModel.sideEffect.collect { effect ->
-            when (effect) {
-                is SplashViewModel.SideEffect.NavigateAway -> onSplashFinished()
-            }
+    viewModel.collectSideEffect { effect ->
+        when (effect) {
+            is SplashViewModel.SideEffect.NavigateAway -> onSplashFinished()
         }
     }
 
@@ -96,7 +92,7 @@ fun SplashScreen(
 @Preview(showBackground = true, widthDp = 411, heightDp = 891)
 @Composable
 fun SplashScreenPreview() {
-    val fakeViewModel: SplashViewModel = viewModel()
+    val fakeViewModel = viewModel { SplashViewModel() }
     SplashScreen(
         viewModel = fakeViewModel,
         onSplashFinished = {}

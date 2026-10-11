@@ -11,12 +11,15 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ShoppingBag
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import org.siamdev.zappos.viewModelOf
+import androidx.lifecycle.viewmodel.compose.viewModel
+import org.orbitmvi.orbit.compose.collectAsState
+import org.orbitmvi.orbit.compose.collectSideEffect
 import org.siamdev.zappos.ui.components.common.SegmentedTabBar
 import org.siamdev.zappos.ui.components.common.WorkspaceHeader
 import org.siamdev.zappos.ui.components.menu.DefaultProductCategories
@@ -38,69 +41,78 @@ fun MasterEntryScreen(
     onSave: () -> Unit = {},
     showBackButton: Boolean = false,
 ) {
-    val vm = viewModelOf { MasterEntryViewModel() }
-    val surface = remember(vm) { MasterEntrySurfaceImpl(vm) }
+    val vm = viewModel { MasterEntryViewModel(productId) }
+    val form by vm.collectAsState()
+    val snackbarHostState = remember { SnackbarHostState() }
 
-    LaunchedEffect(productId) { vm.init(productId) }
-
-    LaunchedEffect(vm) {
-        vm.effect.collect { effect ->
-            when (effect) {
-                is MasterEntryViewModel.SideEffect.SaveSuccess -> onSave()
-                is MasterEntryViewModel.SideEffect.NavigateBack -> onNavigateBack()
-                is MasterEntryViewModel.SideEffect.SaveError -> Unit
-            }
+    vm.collectSideEffect { effect ->
+        when (effect) {
+            is MasterEntryViewModel.SideEffect.SaveSuccess -> onSave()
+            is MasterEntryViewModel.SideEffect.NavigateBack -> onNavigateBack()
+            is MasterEntryViewModel.SideEffect.Error -> snackbarHostState.showSnackbar(effect.message)
         }
     }
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
-            .windowInsetsPadding(WindowInsets.systemBars),
-    ) {
-        WorkspaceHeader(
-            title = "Product Master",
-            subtitle = if (surface.isEditMode) "Edit product · master data" else "New product · master data",
-            onSegmentClick = onOpenDrawer,
-            onNavigateBack = if (showBackButton) onNavigateBack else null,
-        )
+    val onEdit: EntryFormEdit = vm::edit
 
-        if (!surface.isEditMode) {
-            SegmentedTabBar(
-                tabs = entryTabs,
-                selectedIndex = surface.entryType.ordinal,
-                onTabSelect = { surface.entryType = EntryType.entries[it] },
-                modifier = Modifier
-                    .padding(horizontal = 16.dp)
-                    .padding(top = 8.dp, bottom = 8.dp),
+    Box(modifier = Modifier.fillMaxSize()) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(MaterialTheme.colorScheme.background)
+                .windowInsetsPadding(WindowInsets.systemBars),
+        ) {
+            WorkspaceHeader(
+                title = "Product Master",
+                subtitle = if (form.isEditMode) "Edit product · master data" else "New product · master data",
+                onSegmentClick = onOpenDrawer,
+                onNavigateBack = if (showBackButton) onNavigateBack else null,
+            )
+
+            if (!form.isEditMode) {
+                SegmentedTabBar(
+                    tabs = entryTabs,
+                    selectedIndex = form.entryType.ordinal,
+                    onTabSelect = { onEdit { withEntryType(EntryType.entries[it]) } },
+                    modifier = Modifier
+                        .padding(horizontal = 16.dp)
+                        .padding(top = 8.dp, bottom = 8.dp),
+                )
+            }
+
+            BoxWithConstraints(modifier = Modifier.weight(1f)) {
+                if (maxWidth >= 750.dp) {
+                    EntryDesktopLayout(form, onEdit)
+                } else {
+                    EntryMobileLayout(form, onEdit)
+                }
+            }
+
+            EntryActionBar(
+                isFormValid = form.isFormValid && !form.isSaving,
+                isEditMode = form.isEditMode,
+                onSave = { vm.save() },
+                onDiscard = { vm.discard() },
             )
         }
 
-        BoxWithConstraints(modifier = Modifier.weight(1f)) {
-            if (maxWidth >= 750.dp) {
-                EntryDesktopLayout(surface)
-            } else {
-                EntryMobileLayout(surface)
-            }
-        }
-
-        EntryActionBar(
-            isFormValid = surface.isFormValid,
-            isEditMode = surface.isEditMode,
-            onSave = { surface.save() },
-            onDiscard = { surface.discard() },
+        SnackbarHost(
+            hostState = snackbarHostState,
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .windowInsetsPadding(WindowInsets.systemBars)
+                .padding(bottom = 72.dp),
         )
     }
 }
 
 @Composable
-private fun EntryMobileLayout(surface: MasterEntrySurface) {
-    val tab = entryTabs[surface.entryType.ordinal]
+private fun EntryMobileLayout(form: MasterEntryViewModel.State, onEdit: EntryFormEdit) {
+    val tab = entryTabs[form.entryType.ordinal]
     val catEntry =
-        remember(surface.category) { DefaultProductCategories.find { it.id == surface.category } }
-    val categoryName = catEntry?.name ?: surface.category.ifBlank { tab.label }
-    val subName = catEntry?.subCategories?.find { it.id == surface.subCategory }?.name
+        remember(form.detail.category) { DefaultProductCategories.find { it.id == form.detail.category } }
+    val categoryName = catEntry?.name ?: form.detail.category.ifBlank { tab.label }
+    val subName = catEntry?.subCategories?.find { it.id == form.detail.subCategory }?.name
     val catIcon = catEntry?.icon ?: tab.icon ?: Icons.Default.ShoppingBag
 
     LazyColumn(
@@ -108,10 +120,10 @@ private fun EntryMobileLayout(surface: MasterEntrySurface) {
         contentPadding = PaddingValues(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        if (surface.name.isNotBlank()) {
+        if (form.detail.name.isNotBlank()) {
             item {
                 ProductHeader(
-                    name = surface.name,
+                    name = form.detail.name,
                     categoryName = categoryName,
                     subName = subName,
                     catIcon = catIcon,
@@ -119,40 +131,40 @@ private fun EntryMobileLayout(surface: MasterEntrySurface) {
             }
         }
 
-        item { ProductDetailsSection(surface) }
-        item { PricingSection(surface) }
+        item { ProductDetailsSection(form, onEdit) }
+        item { PricingSection(form, onEdit) }
 
-        when (surface.entryType) {
+        when (form.entryType) {
             EntryType.GOODS -> {
-                item { InventorySection(surface) }
-                item { OptionsSection(surface) }
+                item { InventorySection(form, onEdit) }
+                item { OptionsSection(form, onEdit) }
             }
 
             EntryType.SERVICE -> {
-                item { ScheduleCapacitySection(surface) }
-                item { OptionsSection(surface) }
+                item { ScheduleCapacitySection(form, onEdit) }
+                item { OptionsSection(form, onEdit) }
             }
 
-            EntryType.RENTAL -> item { ResourcesBookingSection(surface) }
+            EntryType.RENTAL -> item { ResourcesBookingSection(form, onEdit) }
         }
 
-        item { AdvancedSection(surface) }
+        item { AdvancedSection(form, onEdit) }
     }
 }
 
 @Composable
-private fun EntryDesktopLayout(surface: MasterEntrySurface) {
-    val tab = entryTabs[surface.entryType.ordinal]
+private fun EntryDesktopLayout(form: MasterEntryViewModel.State, onEdit: EntryFormEdit) {
+    val tab = entryTabs[form.entryType.ordinal]
     val catEntry =
-        remember(surface.category) { DefaultProductCategories.find { it.id == surface.category } }
-    val categoryName = catEntry?.name ?: surface.category.ifBlank { tab.label }
-    val subName = catEntry?.subCategories?.find { it.id == surface.subCategory }?.name
+        remember(form.detail.category) { DefaultProductCategories.find { it.id == form.detail.category } }
+    val categoryName = catEntry?.name ?: form.detail.category.ifBlank { tab.label }
+    val subName = catEntry?.subCategories?.find { it.id == form.detail.subCategory }?.name
     val catIcon = catEntry?.icon ?: tab.icon ?: Icons.Default.ShoppingBag
 
     Column(modifier = Modifier.fillMaxSize()) {
-        if (surface.name.isNotBlank()) {
+        if (form.detail.name.isNotBlank()) {
             ProductHeader(
-                name = surface.name,
+                name = form.detail.name,
                 categoryName = categoryName,
                 subName = subName,
                 catIcon = catIcon,
@@ -170,8 +182,8 @@ private fun EntryDesktopLayout(surface: MasterEntrySurface) {
                 contentPadding = PaddingValues(16.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                item { ProductDetailsSection(surface) }
-                item { PricingSection(surface) }
+                item { ProductDetailsSection(form, onEdit) }
+                item { PricingSection(form, onEdit) }
             }
 
             VerticalDivider(color = MaterialTheme.colorScheme.outlineVariant)
@@ -181,22 +193,22 @@ private fun EntryDesktopLayout(surface: MasterEntrySurface) {
                 contentPadding = PaddingValues(16.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                when (surface.entryType) {
+                when (form.entryType) {
                     EntryType.GOODS -> {
-                        item { InventorySection(surface) }
-                        item { OptionsSection(surface) }
+                        item { InventorySection(form, onEdit) }
+                        item { OptionsSection(form, onEdit) }
                     }
 
                     EntryType.SERVICE -> {
-                        item { ScheduleCapacitySection(surface) }
-                        item { OptionsSection(surface) }
+                        item { ScheduleCapacitySection(form, onEdit) }
+                        item { OptionsSection(form, onEdit) }
                     }
 
                     EntryType.RENTAL -> {
-                        item { ResourcesBookingSection(surface) }
+                        item { ResourcesBookingSection(form, onEdit) }
                     }
                 }
-                item { AdvancedSection(surface) }
+                item { AdvancedSection(form, onEdit) }
             }
         }
     }

@@ -5,22 +5,27 @@
 package org.siamdev.zappos.ui.screens.setting
 
 import androidx.lifecycle.ViewModel
-import androidx.lifecycle.viewModelScope
-import kotlinx.coroutines.flow.MutableSharedFlow
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.SharedFlow
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asSharedFlow
-import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.update
-import kotlinx.coroutines.launch
+import kotlinx.coroutines.CancellationException
+import org.orbitmvi.orbit.OrbitContainer
+import org.orbitmvi.orbit.OrbitContainerHost
+import org.orbitmvi.orbit.syntax.Syntax
+import org.orbitmvi.orbit.viewmodel.orbitContainer
 import org.siamdev.zappos.data.source.local.LocalSources
 import org.siamdev.zappos.data.source.local.contract.SettingSource
 import org.siamdev.zappos.data.source.local.model.CurrencyItem
 import org.siamdev.zappos.data.source.local.model.FontItem
 import org.siamdev.zappos.data.source.local.model.ThemeItem
+import org.siamdev.zappos.ui.UiContainerSettings
 
-class SettingViewModel : ViewModel() {
+/**
+ * App-wide settings (theme, font, currency, accent colour).
+ *
+ * The source is looked up on every use rather than captured, because the web targets register
+ * [LocalSources] asynchronously after the UI has started.
+ */
+class SettingViewModel(
+    private val source: () -> SettingSource? = { LocalSources.setting },
+) : ViewModel(), OrbitContainerHost<SettingViewModel.State, SettingViewModel.State, SettingViewModel.SideEffect> {
 
     data class State(
         val isLoading: Boolean = false,
@@ -44,59 +49,44 @@ class SettingViewModel : ViewModel() {
             val primary: CurrencyItem? = null,
             val secondary: CurrencyItem? = null,
             val showSecondary: Boolean = false
-        )
+        ) {
+            val primaryCode: String get() = primary?.code ?: "THB"
+            val secondaryCode: String get() = secondary?.code ?: "SATS"
+        }
 
         data class Appearance(val accentColor: String? = null)
     }
 
-    sealed class SideEffect {
-        data class WriteError(val error: Throwable) : SideEffect()
+    sealed interface SideEffect {
+        data class Error(val message: String) : SideEffect
     }
 
-    private val _state = MutableStateFlow(State())
-    val state: StateFlow<State> = _state.asStateFlow()
+    override val container: OrbitContainer<State, State, SideEffect> =
+        orbitContainer(State(), buildSettings = UiContainerSettings) { loadAll() }
 
-    private val _sideEffect = MutableSharedFlow<SideEffect>(replay = 0)
-    val sideEffect: SharedFlow<SideEffect> = _sideEffect.asSharedFlow()
+    private suspend fun Syntax<State, SideEffect>.loadAll() {
+        val src = source() ?: return
 
-    private val source: SettingSource? get() = LocalSources.setting
-
-    init {
-        viewModelScope.launch { loadAll() }
-    }
-
-    private suspend fun loadAll() {
-        val src = source
-        if (src == null) {
-            _state.update { it.copy(isLoading = false) }
-            return
-        }
-
-        _state.update { it.copy(isLoading = true) }
-
-        seedDefaults(src)
-
-        _state.update {
-            it.copy(
-                isLoading = false,
-                theme = State.Theme(
-                    options = src.getThemes(),
-                    active = src.getActiveTheme()
-                ),
-                font = State.Font(
-                    options = src.getFonts(),
-                    active = src.getActiveFont()
-                ),
+        reduce { state.copy(isLoading = true) }
+        try {
+            seedDefaults(src)
+            val loaded = State(
+                theme = State.Theme(options = src.getThemes(), active = src.getActiveTheme()),
+                font = State.Font(options = src.getFonts(), active = src.getActiveFont()),
                 currency = State.Currency(
                     options = src.getCurrencies(),
                     primary = src.getPrimaryCurrency(),
                     secondary = src.getSecondaryCurrency(),
                     showSecondary = src.getShowSecondaryCurrency()
                 ),
-                appearance = State.Appearance(
-                    accentColor = src.getAccentColor()
-                )
+                appearance = State.Appearance(accentColor = src.getAccentColor())
             )
+            reduce { loaded }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            reduce { state.copy(isLoading = false) }
+            postSideEffect(SideEffect.Error(e.message ?: "Could not load settings"))
         }
     }
 
@@ -136,81 +126,88 @@ class SettingViewModel : ViewModel() {
         }
     }
 
-    fun selectTheme(themeId: String) {
-        viewModelScope.launch {
-            val previous = _state.value.theme.active
-            _state.update { it.copy(theme = it.theme.copy(active = it.theme.options.find { t -> t.id == themeId })) }
-            runCatching {
-                source?.setActiveTheme(themeId)
-            }.onFailure { error ->
-                _state.update { it.copy(theme = it.theme.copy(active = previous)) }
-                _sideEffect.emit(SideEffect.WriteError(error))
-            }
-        }
+    fun selectTheme(themeId: String) = intent {
+        val previous = state.theme.active
+        reduce { state.copy(theme = state.theme.copy(active = state.theme.options.find { it.id == themeId })) }
+        persist(
+            write = { setActiveTheme(themeId) },
+            isStillApplied = { theme.active?.id == themeId },
+            rollback = { copy(theme = theme.copy(active = previous)) },
+        )
     }
 
-    fun selectFont(fontId: String) {
-        viewModelScope.launch {
-            val previous = _state.value.font.active
-            _state.update { it.copy(font = it.font.copy(active = it.font.options.find { f -> f.id == fontId })) }
-            runCatching {
-                source?.setActiveFont(fontId)
-            }.onFailure { error ->
-                _state.update { it.copy(font = it.font.copy(active = previous)) }
-                _sideEffect.emit(SideEffect.WriteError(error))
-            }
-        }
+    fun selectFont(fontId: String) = intent {
+        val previous = state.font.active
+        reduce { state.copy(font = state.font.copy(active = state.font.options.find { it.id == fontId })) }
+        persist(
+            write = { setActiveFont(fontId) },
+            isStillApplied = { font.active?.id == fontId },
+            rollback = { copy(font = font.copy(active = previous)) },
+        )
     }
 
-    fun selectPrimaryCurrency(currencyId: String) {
-        viewModelScope.launch {
-            val previous = _state.value.currency.primary
-            _state.update { it.copy(currency = it.currency.copy(primary = it.currency.options.find { c -> c.id == currencyId })) }
-            runCatching {
-                source?.setPrimaryCurrency(currencyId)
-            }.onFailure { error ->
-                _state.update { it.copy(currency = it.currency.copy(primary = previous)) }
-                _sideEffect.emit(SideEffect.WriteError(error))
-            }
+    fun selectPrimaryCurrency(currencyId: String) = intent {
+        val previous = state.currency.primary
+        reduce {
+            state.copy(currency = state.currency.copy(primary = state.currency.options.find { it.id == currencyId }))
         }
+        persist(
+            write = { setPrimaryCurrency(currencyId) },
+            isStillApplied = { currency.primary?.id == currencyId },
+            rollback = { copy(currency = currency.copy(primary = previous)) },
+        )
     }
 
-    fun selectSecondaryCurrency(currencyId: String) {
-        viewModelScope.launch {
-            val previous = _state.value.currency.secondary
-            _state.update { it.copy(currency = it.currency.copy(secondary = it.currency.options.find { c -> c.id == currencyId })) }
-            runCatching {
-                source?.setSecondaryCurrency(currencyId)
-            }.onFailure { error ->
-                _state.update { it.copy(currency = it.currency.copy(secondary = previous)) }
-                _sideEffect.emit(SideEffect.WriteError(error))
-            }
+    fun selectSecondaryCurrency(currencyId: String) = intent {
+        val previous = state.currency.secondary
+        reduce {
+            state.copy(currency = state.currency.copy(secondary = state.currency.options.find { it.id == currencyId }))
         }
+        persist(
+            write = { setSecondaryCurrency(currencyId) },
+            isStillApplied = { currency.secondary?.id == currencyId },
+            rollback = { copy(currency = currency.copy(secondary = previous)) },
+        )
     }
 
-    fun toggleSecondaryCurrency(show: Boolean) {
-        viewModelScope.launch {
-            val previous = _state.value.currency.showSecondary
-            _state.update { it.copy(currency = it.currency.copy(showSecondary = show)) }
-            runCatching {
-                source?.setShowSecondaryCurrency(show)
-            }.onFailure { error ->
-                _state.update { it.copy(currency = it.currency.copy(showSecondary = previous)) }
-                _sideEffect.emit(SideEffect.WriteError(error))
-            }
-        }
+    fun toggleSecondaryCurrency(show: Boolean) = intent {
+        val previous = state.currency.showSecondary
+        reduce { state.copy(currency = state.currency.copy(showSecondary = show)) }
+        persist(
+            write = { setShowSecondaryCurrency(show) },
+            isStillApplied = { currency.showSecondary == show },
+            rollback = { copy(currency = currency.copy(showSecondary = previous)) },
+        )
     }
 
-    fun selectAccentColor(hex: String) {
-        viewModelScope.launch {
-            val previous = _state.value.appearance.accentColor
-            _state.update { it.copy(appearance = it.appearance.copy(accentColor = hex)) }
-            runCatching {
-                source?.setAccentColor(hex)
-            }.onFailure { error ->
-                _state.update { it.copy(appearance = it.appearance.copy(accentColor = previous)) }
-                _sideEffect.emit(SideEffect.WriteError(error))
-            }
+    fun selectAccentColor(hex: String) = intent {
+        val previous = state.appearance.accentColor
+        reduce { state.copy(appearance = state.appearance.copy(accentColor = hex)) }
+        persist(
+            write = { setAccentColor(hex) },
+            isStillApplied = { appearance.accentColor == hex },
+            rollback = { copy(appearance = appearance.copy(accentColor = previous)) },
+        )
+    }
+
+    /**
+     * Writes an optimistic change through to the source. On failure the change is rolled back –
+     * but only while it is still the applied value, so a late failure never clobbers a newer
+     * selection – and the error is reported to the UI.
+     */
+    private suspend fun Syntax<State, SideEffect>.persist(
+        write: suspend SettingSource.() -> Unit,
+        isStillApplied: State.() -> Boolean,
+        rollback: State.() -> State,
+    ) {
+        val src = source() ?: return
+        try {
+            src.write()
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            reduce { if (state.isStillApplied()) state.rollback() else state }
+            postSideEffect(SideEffect.Error(e.message ?: "Operation failed"))
         }
     }
 }

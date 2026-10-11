@@ -15,14 +15,11 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import org.siamdev.zappos.LocalSettingVM
 import org.siamdev.zappos.data.source.MasterEvent
 import org.siamdev.zappos.ui.components.menu.DefaultProductCategories
 import org.siamdev.zappos.ui.components.product.ProductHeader
 import org.siamdev.zappos.ui.components.stock.*
 import org.siamdev.zappos.ui.screens.product.goods.sampleProducts
-import org.siamdev.zappos.ui.screens.setting.SettingSurfaceImpl
-import org.siamdev.zappos.ui.screens.setting.SettingViewModel
 import kotlin.math.abs
 
 private fun fakeStockHistory(productId: String): List<StockRecord> {
@@ -184,9 +181,7 @@ internal fun MonitorStockTabContent(product: MasterEvent) {
 )
 @Composable
 private fun MonitorStockInStockPreview() {
-    CompositionLocalProvider(LocalSettingVM provides SettingSurfaceImpl(SettingViewModel())) {
-        MonitorStockTabContent(product = sampleProducts().first())
-    }
+    MonitorStockTabContent(product = sampleProducts().first())
 }
 
 @Preview(
@@ -197,9 +192,7 @@ private fun MonitorStockInStockPreview() {
 )
 @Composable
 private fun MonitorStockOutOfStockPreview() {
-    CompositionLocalProvider(LocalSettingVM provides SettingSurfaceImpl(SettingViewModel())) {
-        MonitorStockTabContent(product = sampleProducts().first { it.stockQty == 0 })
-    }
+    MonitorStockTabContent(product = sampleProducts().first { it.stockQty == 0 })
 }
 
 @Preview(
@@ -210,9 +203,7 @@ private fun MonitorStockOutOfStockPreview() {
 )
 @Composable
 private fun MonitorStockNoTrackingPreview() {
-    CompositionLocalProvider(LocalSettingVM provides SettingSurfaceImpl(SettingViewModel())) {
-        MonitorStockTabContent(product = sampleProducts().first { it.stockQty == null })
-    }
+    MonitorStockTabContent(product = sampleProducts().first { it.stockQty == null })
 }
 
 @Preview(
@@ -223,7 +214,5 @@ private fun MonitorStockNoTrackingPreview() {
 )
 @Composable
 private fun MonitorStockWidePreview() {
-    CompositionLocalProvider(LocalSettingVM provides SettingSurfaceImpl(SettingViewModel())) {
-        MonitorStockTabContent(product = sampleProducts().first())
-    }
+    MonitorStockTabContent(product = sampleProducts().first())
 }

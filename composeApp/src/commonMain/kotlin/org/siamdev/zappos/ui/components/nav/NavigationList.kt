@@ -40,11 +40,11 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import org.jetbrains.compose.resources.painterResource
 import org.siamdev.zappos.APP_VERSION
+import org.orbitmvi.orbit.compose.collectAsState
 import org.siamdev.zappos.LocalNavigationVM
 import org.siamdev.zappos.LocalSettingVM
 import org.siamdev.zappos.navigation.Route
 import org.siamdev.zappos.ui.components.sheet.SlideBottomSheet
-import org.siamdev.zappos.ui.screens.setting.SettingSurfaceImpl
 import org.siamdev.zappos.ui.screens.setting.SettingViewModel
 import zappos.composeapp.generated.resources.Res
 import zappos.composeapp.generated.resources.zappos_dark_horizontal_v2
@@ -154,9 +154,10 @@ fun NavigationList(
     val divider =
         if (isDark) Color.White.copy(alpha = 0.07f) else Color(0xFF1A1A1A).copy(alpha = 0.07f)
 
-    val activeId = navVM.activeNavId
-    val filter: NavSection? = remember(navVM.activeSectionId) {
-        navVM.activeSectionId?.let { id -> NavSection.entries.find { it.name == id } }
+    val navState by navVM.collectAsState()
+    val activeId = navState.activeNavId
+    val filter: NavSection? = remember(navState.activeSectionId) {
+        navState.activeSectionId?.let { id -> NavSection.entries.find { it.name == id } }
     }
     var showCatSheet by remember { mutableStateOf(initialShowCatSheet) }
 
@@ -683,8 +684,8 @@ private fun CategoryFilterCard(
 private fun DrawerDarkPreview() {
     MaterialTheme(colorScheme = darkColorScheme()) {
         CompositionLocalProvider(
-            LocalSettingVM provides SettingSurfaceImpl(SettingViewModel()),
-            LocalNavigationVM provides NavigationSurfaceImpl(NavigationViewModel())
+            LocalSettingVM provides remember { SettingViewModel() },
+            LocalNavigationVM provides remember { NavigationViewModel() }
         ) {
             NavigationList(isOpen = true, onDismiss = {})
         }
@@ -696,8 +697,8 @@ private fun DrawerDarkPreview() {
 private fun DrawerLightPreview() {
     MaterialTheme(colorScheme = lightColorScheme()) {
         CompositionLocalProvider(
-            LocalSettingVM provides SettingSurfaceImpl(SettingViewModel()),
-            LocalNavigationVM provides NavigationSurfaceImpl(NavigationViewModel())
+            LocalSettingVM provides remember { SettingViewModel() },
+            LocalNavigationVM provides remember { NavigationViewModel() }
         ) {
             NavigationList(isOpen = true, onDismiss = {})
         }
@@ -714,8 +715,8 @@ private fun DrawerLightPreview() {
 private fun DrawerActiveItemPreview() {
     MaterialTheme {
         CompositionLocalProvider(
-            LocalSettingVM provides SettingSurfaceImpl(SettingViewModel()),
-            LocalNavigationVM provides NavigationSurfaceImpl(NavigationViewModel())
+            LocalSettingVM provides remember { SettingViewModel() },
+            LocalNavigationVM provides remember { NavigationViewModel() }
         ) {
             NavigationList(
                 isOpen = true,
@@ -736,8 +737,8 @@ private fun DrawerActiveItemPreview() {
 private fun DrawerActiveSettingsPreview() {
     MaterialTheme {
         CompositionLocalProvider(
-            LocalSettingVM provides SettingSurfaceImpl(SettingViewModel()),
-            LocalNavigationVM provides NavigationSurfaceImpl(NavigationViewModel())
+            LocalSettingVM provides remember { SettingViewModel() },
+            LocalNavigationVM provides remember { NavigationViewModel() }
         ) {
             NavigationList(
                 isOpen = true,
@@ -756,11 +757,11 @@ private fun DrawerActiveSettingsPreview() {
 )
 @Composable
 private fun DrawerFilteredPreview() {
-    val navVM = NavigationViewModel().apply { setFilter("SALES") }
+    val navVM = remember { NavigationViewModel().apply { setFilter("SALES") } }
     MaterialTheme {
         CompositionLocalProvider(
-            LocalSettingVM provides SettingSurfaceImpl(SettingViewModel()),
-            LocalNavigationVM provides NavigationSurfaceImpl(navVM)
+            LocalSettingVM provides remember { SettingViewModel() },
+            LocalNavigationVM provides navVM
         ) {
             NavigationList(isOpen = true, onDismiss = {})
         }
@@ -777,8 +778,8 @@ private fun DrawerFilteredPreview() {
 private fun DrawerCatSheetPreview() {
     MaterialTheme {
         CompositionLocalProvider(
-            LocalSettingVM provides SettingSurfaceImpl(SettingViewModel()),
-            LocalNavigationVM provides NavigationSurfaceImpl(NavigationViewModel())
+            LocalSettingVM provides remember { SettingViewModel() },
+            LocalNavigationVM provides remember { NavigationViewModel() }
         ) {
             NavigationList(
                 isOpen = true,
@@ -799,8 +800,8 @@ private fun DrawerCatSheetPreview() {
 private fun DrawerCatCardDesktopPreview() {
     MaterialTheme(colorScheme = darkColorScheme()) {
         CompositionLocalProvider(
-            LocalSettingVM provides SettingSurfaceImpl(SettingViewModel()),
-            LocalNavigationVM provides NavigationSurfaceImpl(NavigationViewModel())
+            LocalSettingVM provides remember { SettingViewModel() },
+            LocalNavigationVM provides remember { NavigationViewModel() }
         ) {
             NavigationList(
                 isOpen = true,

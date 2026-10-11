@@ -5,10 +5,11 @@
 package org.siamdev.zappos.ui.screens.sale.checkout
 
 import androidx.lifecycle.ViewModel
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.update
+import org.orbitmvi.orbit.OrbitContainer
+import org.orbitmvi.orbit.OrbitContainerHost
+import org.orbitmvi.orbit.viewmodel.orbitContainer
+import org.siamdev.zappos.ui.UiContainerSettings
+import org.siamdev.zappos.ui.screens.sale.MenuItem
 
 enum class PaymentMethod(val label: String) {
     NFC_LIGHTNING("NFC Lightning Card"),
@@ -28,7 +29,12 @@ data class CheckoutItem(
     val priceSat: String
 )
 
-class CheckoutViewModel : ViewModel() {
+fun MenuItem.toCheckoutItem() = CheckoutItem(name = name, count = count, priceBaht = priceBaht, priceSat = priceSat)
+
+/** The checkout wizard: order review → payment method → cash / processing → success. */
+class CheckoutViewModel :
+    ViewModel(),
+    OrbitContainerHost<CheckoutViewModel.State, CheckoutViewModel.State, Nothing> {
 
     data class State(
         val step: CheckoutStep = CheckoutStep.ORDER,
@@ -50,116 +56,108 @@ class CheckoutViewModel : ViewModel() {
             val changeAmount: Double = 0.0,
             val isChangeValid: Boolean = false
         )
-    }
 
-    sealed class SideEffect
+        fun withOrder(items: List<CheckoutItem>, totalFiat: String, totalSat: String): State =
+            copy(order = order.copy(items = items, totalFiat = totalFiat, totalSat = totalSat)).recomputed()
 
-    private val _state = MutableStateFlow(State())
-    val state: StateFlow<State> = _state.asStateFlow()
+        fun withReceivedAmount(amount: String): State =
+            copy(payment = payment.copy(receivedAmount = amount)).recomputed()
 
-    private fun State.recomputed(): State {
-        val subtotalFiat = order.totalFiat.replace(",", "").toDoubleOrNull() ?: 0.0
-        val subtotalSat = order.totalSat.replace(",", "").toDoubleOrNull() ?: 0.0
-        val tax = order.taxPercent / 100f
-        val received = payment.receivedAmount.replace(",", "").toDoubleOrNull() ?: 0.0
-        val change = (received - subtotalFiat).coerceAtLeast(0.0)
-        return copy(
-            order = order.copy(
-                grandTotalFiat = formatDouble(subtotalFiat * (1 + tax)),
-                grandTotalSat = formatDouble(subtotalSat * (1 + tax))
-            ),
-            payment = payment.copy(
-                changeAmount = change,
-                isChangeValid = received >= subtotalFiat
+        /** Re-derives grand totals and change from the order, tax rate and received cash. */
+        fun recomputed(): State {
+            val subtotalFiat = order.totalFiat.replace(",", "").toDoubleOrNull() ?: 0.0
+            val subtotalSat = order.totalSat.replace(",", "").toDoubleOrNull() ?: 0.0
+            val tax = order.taxPercent / 100f
+            val received = payment.receivedAmount.replace(",", "").toDoubleOrNull() ?: 0.0
+            val change = (received - subtotalFiat).coerceAtLeast(0.0)
+            return copy(
+                order = order.copy(
+                    grandTotalFiat = formatDouble(subtotalFiat * (1 + tax)),
+                    grandTotalSat = formatDouble(subtotalSat * (1 + tax))
+                ),
+                payment = payment.copy(
+                    changeAmount = change,
+                    isChangeValid = received >= subtotalFiat
+                )
             )
-        )
-    }
-
-    fun syncFromMenu(items: List<CheckoutItem>, fiat: String, sat: String) {
-        _state.update {
-            it.copy(
-                order = it.order.copy(items = items, totalFiat = fiat, totalSat = sat)
-            ).recomputed()
         }
     }
 
-    fun setTax(percent: Float) {
-        _state.update { it.copy(order = it.order.copy(taxPercent = percent)).recomputed() }
+    override val container: OrbitContainer<State, State, Nothing> =
+        orbitContainer(State(), buildSettings = UiContainerSettings)
+
+    fun syncFromMenu(items: List<CheckoutItem>, fiat: String, sat: String) = intent {
+        reduce { state.withOrder(items, fiat, sat) }
     }
 
-    fun formatChange(): String = formatDouble(_state.value.payment.changeAmount)
-
-    fun openSelectPayment() {
-        _state.update { it.copy(step = CheckoutStep.SELECT_PAYMENT) }
+    fun setTax(percent: Float) = intent {
+        reduce { state.copy(order = state.order.copy(taxPercent = percent)).recomputed() }
     }
 
-    fun backToOrder() {
-        _state.update { it.copy(step = CheckoutStep.ORDER) }
+    fun openSelectPayment() = intent { reduce { state.copy(step = CheckoutStep.SELECT_PAYMENT) } }
+
+    fun backToOrder() = intent { reduce { state.copy(step = CheckoutStep.ORDER) } }
+
+    fun backToSelectPayment() = intent { reduce { state.copy(step = CheckoutStep.SELECT_PAYMENT) } }
+
+    fun selectMethod(method: PaymentMethod) = intent {
+        reduce { state.copy(payment = state.payment.copy(selectedMethod = method)) }
     }
 
-    fun backToSelectPayment() {
-        _state.update { it.copy(step = CheckoutStep.SELECT_PAYMENT) }
-    }
-
-    fun selectMethod(method: PaymentMethod) {
-        _state.update { it.copy(payment = it.payment.copy(selectedMethod = method)) }
-    }
-
-    fun confirmPayment() {
-        val method = _state.value.payment.selectedMethod ?: return
-        val nextStep =
-            if (method == PaymentMethod.CASH) CheckoutStep.CASH_CALCULATOR else CheckoutStep.PROCESSING
-        _state.update { it.copy(step = nextStep) }
-    }
-
-    fun appendCashDigit(digit: String) {
-        val current = _state.value.payment.receivedAmount
-        if (digit == "." && current.contains(".")) return
-        val next = when {
-            digit != "." && (current == "0" || current.isEmpty()) -> digit
-            else -> current + digit
-        }
-        _state.update { it.copy(payment = it.payment.copy(receivedAmount = next)).recomputed() }
-    }
-
-    fun deleteCashDigit() {
-        val next = _state.value.payment.receivedAmount.dropLast(1)
-        _state.update { it.copy(payment = it.payment.copy(receivedAmount = next)).recomputed() }
-    }
-
-    fun clearReceivedAmount() {
-        _state.update { it.copy(payment = it.payment.copy(receivedAmount = "")).recomputed() }
-    }
-
-    fun appendQuickAmount(amount: String) {
-        val add = amount.toDoubleOrNull() ?: return
-        val current = _state.value.payment.receivedAmount.replace(",", "").toDoubleOrNull() ?: 0.0
-        val result = current + add
-        val next = if (result == result.toLong().toDouble()) {
-            result.toLong().toString()
-        } else {
-            val intPart = result.toLong()
-            val decPart = ((result - intPart) * 100).toLong()
-            "$intPart.${decPart.toString().padStart(2, '0')}"
-        }
-        _state.update { it.copy(payment = it.payment.copy(receivedAmount = next)).recomputed() }
-    }
-
-    fun confirmCash() {
-        if (_state.value.payment.isChangeValid) {
-            _state.update { it.copy(step = CheckoutStep.PROCESSING) }
+    fun confirmPayment() = intent {
+        reduce {
+            when (state.payment.selectedMethod) {
+                null -> state
+                PaymentMethod.CASH -> state.copy(step = CheckoutStep.CASH_CALCULATOR)
+                else -> state.copy(step = CheckoutStep.PROCESSING)
+            }
         }
     }
 
-    fun confirmProcessing() {
-        _state.update { it.copy(step = CheckoutStep.SUCCESS) }
+    fun appendCashDigit(digit: String) = intent {
+        reduce {
+            val current = state.payment.receivedAmount
+            when {
+                digit == "." && current.contains(".") -> state
+                digit != "." && (current == "0" || current.isEmpty()) -> state.withReceivedAmount(digit)
+                else -> state.withReceivedAmount(current + digit)
+            }
+        }
     }
 
-    fun reset() {
-        _state.update {
-            it.copy(
+    fun deleteCashDigit() = intent {
+        reduce { state.withReceivedAmount(state.payment.receivedAmount.dropLast(1)) }
+    }
+
+    fun clearReceivedAmount() = intent { reduce { state.withReceivedAmount("") } }
+
+    fun appendQuickAmount(amount: String) = intent {
+        val add = amount.toDoubleOrNull() ?: return@intent
+        reduce {
+            val current = state.payment.receivedAmount.replace(",", "").toDoubleOrNull() ?: 0.0
+            val result = current + add
+            val next = if (result == result.toLong().toDouble()) {
+                result.toLong().toString()
+            } else {
+                val intPart = result.toLong()
+                val decPart = ((result - intPart) * 100).toLong()
+                "$intPart.${decPart.toString().padStart(2, '0')}"
+            }
+            state.withReceivedAmount(next)
+        }
+    }
+
+    fun confirmCash() = intent {
+        reduce { if (state.payment.isChangeValid) state.copy(step = CheckoutStep.PROCESSING) else state }
+    }
+
+    fun confirmProcessing() = intent { reduce { state.copy(step = CheckoutStep.SUCCESS) } }
+
+    fun reset() = intent {
+        reduce {
+            state.copy(
                 step = CheckoutStep.ORDER,
-                payment = it.payment.copy(selectedMethod = null, receivedAmount = "")
+                payment = state.payment.copy(selectedMethod = null, receivedAmount = "")
             ).recomputed()
         }
     }

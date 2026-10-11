@@ -18,32 +18,32 @@ import org.siamdev.zappos.ui.components.common.EntryField
 import org.siamdev.zappos.ui.components.common.NumberUnitField
 import org.siamdev.zappos.ui.components.common.SectionCard
 import org.siamdev.zappos.ui.components.common.ToggleItem
-import org.siamdev.zappos.ui.screens.product.entry.EntryFormState
-import org.siamdev.zappos.ui.screens.product.entry.MasterEntrySurface
-import org.siamdev.zappos.ui.screens.product.entry.rememberEntryFormState
+import org.siamdev.zappos.ui.screens.product.entry.EntryFormEdit
+import org.siamdev.zappos.ui.screens.product.entry.MasterEntryViewModel
+import org.siamdev.zappos.ui.screens.product.entry.PreviewEntryForm
 
 @Composable
-internal fun InventorySection(state: MasterEntrySurface) {
-    val sellUnit = state.unit.ifEmpty { "unit" }
+internal fun InventorySection(form: MasterEntryViewModel.State, onEdit: EntryFormEdit) {
+    val sellUnit = form.pricing.unit.ifEmpty { "unit" }
 
     SectionCard(
         icon = Icons.Default.Notifications,
         title = "Stock notification",
         subtitle = "Tap to enable quantity tracking",
-        expanded = state.trackStock,
-        onExpandChange = { state.trackStock = it },
+        expanded = form.inventory.trackStock,
+        onExpandChange = { onEdit { copy(inventory = inventory.copy(trackStock = it)) } },
     ) {
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             NumberUnitField(
-                value = state.openingStock,
-                onValueChange = { state.openingStock = it },
+                value = form.inventory.openingStock,
+                onValueChange = { onEdit { copy(inventory = inventory.copy(openingStock = it)) } },
                 label = "Opening stock",
                 unitLabel = sellUnit,
                 modifier = Modifier.weight(1f),
             )
             NumberUnitField(
-                value = state.maxCapacity,
-                onValueChange = { state.maxCapacity = it },
+                value = form.inventory.maxCapacity,
+                onValueChange = { onEdit { copy(inventory = inventory.copy(maxCapacity = it)) } },
                 label = "Max capacity",
                 unitLabel = sellUnit,
                 modifier = Modifier.weight(1f),
@@ -51,25 +51,25 @@ internal fun InventorySection(state: MasterEntrySurface) {
         }
 
         NumberUnitField(
-            value = state.lowStockAlert,
-            onValueChange = { state.lowStockAlert = it },
+            value = form.inventory.lowStockAlert,
+            onValueChange = { onEdit { copy(inventory = inventory.copy(lowStockAlert = it)) } },
             label = "Low stock alert",
             unitLabel = sellUnit,
         )
 
         EntryField(
-            value = state.supplier,
-            onValueChange = { state.supplier = it },
+            value = form.inventory.supplier,
+            onValueChange = { onEdit { copy(inventory = inventory.copy(supplier = it)) } },
             label = "Supplier / vendor",
             placeholder = "Name or company",
         )
 
         ToggleItem(
-            icon = if (state.trackActive) Icons.Filled.CheckCircle else Icons.Outlined.Cancel,
+            icon = if (form.inventory.trackActive) Icons.Filled.CheckCircle else Icons.Outlined.Cancel,
             label = "Expiry alerts",
-            subtitle = if (state.trackActive) "Active" else "Inactive",
-            checked = state.trackActive,
-            onCheckedChange = { state.trackActive = it },
+            subtitle = if (form.inventory.trackActive) "Active" else "Inactive",
+            checked = form.inventory.trackActive,
+            onCheckedChange = { onEdit { copy(inventory = inventory.copy(trackActive = it)) } },
         )
     }
 }
@@ -77,11 +77,19 @@ internal fun InventorySection(state: MasterEntrySurface) {
 @Preview(showBackground = true, widthDp = 411, name = "Inventory · tracking on")
 @Composable
 private fun InventorySectionPreview() {
-    MaterialTheme { InventorySection(rememberEntryFormState()) }
+    MaterialTheme {
+        PreviewEntryForm { form, onEdit ->
+            InventorySection(form, onEdit)
+        }
+    }
 }
 
 @Preview(showBackground = true, widthDp = 411, name = "Inventory · tracking off")
 @Composable
 private fun InventorySectionNoTrackPreview() {
-    MaterialTheme { InventorySection(rememberEntryFormState().also { it.trackStock = false }) }
+    MaterialTheme {
+        PreviewEntryForm(MasterEntryViewModel.State().run { copy(inventory = inventory.copy(trackStock = false)) }) { form, onEdit ->
+            InventorySection(form, onEdit)
+        }
+    }
 }

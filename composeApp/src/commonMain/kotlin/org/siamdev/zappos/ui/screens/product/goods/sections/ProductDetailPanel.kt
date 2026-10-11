@@ -12,13 +12,11 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import org.siamdev.zappos.LocalSettingVM
 import org.siamdev.zappos.data.source.MasterEvent
 import org.siamdev.zappos.ui.components.common.InfoToggleCard
 import org.siamdev.zappos.ui.components.common.MaterialButton
@@ -27,12 +25,9 @@ import org.siamdev.zappos.ui.components.common.TabItem
 import org.siamdev.zappos.ui.components.dialog.AppDialog
 import org.siamdev.zappos.ui.components.menu.DefaultProductCategories
 import org.siamdev.zappos.ui.components.product.*
-import org.siamdev.zappos.ui.screens.product.entry.EntryFormState
-import org.siamdev.zappos.ui.screens.product.entry.loadFrom
+import org.siamdev.zappos.ui.screens.product.entry.toEntryForm
 import org.siamdev.zappos.ui.screens.product.goods.DetailTab
 import org.siamdev.zappos.ui.screens.product.goods.sampleProducts
-import org.siamdev.zappos.ui.screens.setting.SettingSurfaceImpl
-import org.siamdev.zappos.ui.screens.setting.SettingViewModel
 
 private val detailTabs =
     listOf(
@@ -84,7 +79,7 @@ private fun ProductDetailTabContent(
     val categoryName = catEntry?.name ?: event.category
     val subName = catEntry?.subCategories?.find { it.id == event.subCategory }?.name
     val catIcon = catEntry?.icon
-    val entryState = remember(event.id) { EntryFormState().also { it.loadFrom(event) } }
+    val entryState = remember(event.id) { event.toEntryForm() }
     val stockQty = event.stockQty
     val stockMax = event.stockMax
     var showDeleteDialog by remember { mutableStateOf(false) }
@@ -131,8 +126,8 @@ private fun ProductDetailTabContent(
                 }
             }
             item { ItemInfoCard(state = entryState) }
-            if (entryState.optionGroups.isNotEmpty()) {
-                item { OptionsInfoCard(optionGroups = entryState.optionGroups) }
+            if (entryState.options.isNotEmpty()) {
+                item { OptionsInfoCard(optionGroups = entryState.options) }
             }
             item {
                 InfoToggleCard(
@@ -192,12 +187,10 @@ private fun ProductDetailTabContent(
 )
 @Composable
 private fun ProductDetailPanelPreview() {
-    CompositionLocalProvider(LocalSettingVM provides SettingSurfaceImpl(SettingViewModel())) {
-        ProductDetailPanel(
-            event = sampleProducts().first(),
-            onEdit = {},
-        )
-    }
+    ProductDetailPanel(
+        event = sampleProducts().first(),
+        onEdit = {},
+    )
 }
 
 @Preview(
@@ -208,13 +201,11 @@ private fun ProductDetailPanelPreview() {
 )
 @Composable
 private fun ProductDetailPanelMonitorPreview() {
-    CompositionLocalProvider(LocalSettingVM provides SettingSurfaceImpl(SettingViewModel())) {
-        ProductDetailPanel(
-            event = sampleProducts().first(),
-            onEdit = {},
-            initialTab = DetailTab.MONITOR_STOCK,
-        )
-    }
+    ProductDetailPanel(
+        event = sampleProducts().first(),
+        onEdit = {},
+        initialTab = DetailTab.MONITOR_STOCK,
+    )
 }
 
 @Preview(
@@ -225,10 +216,8 @@ private fun ProductDetailPanelMonitorPreview() {
 )
 @Composable
 private fun ProductDetailPanelNoStockPreview() {
-    CompositionLocalProvider(LocalSettingVM provides SettingSurfaceImpl(SettingViewModel())) {
-        ProductDetailPanel(
-            event = sampleProducts().first { it.stockQty == null },
-            onEdit = {},
-        )
-    }
+    ProductDetailPanel(
+        event = sampleProducts().first { it.stockQty == null },
+        onEdit = {},
+    )
 }

@@ -34,18 +34,15 @@ import okio.Path.Companion.toPath
 import org.siamdev.zappos.cache.ThumbnailSection
 import org.siamdev.zappos.cache.sanitizeCategory
 import org.siamdev.zappos.cache.thumbnailCache
-import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
 import zappos.composeapp.generated.resources.Res
 import org.jetbrains.compose.resources.painterResource
 import zappos.composeapp.generated.resources.compose_multiplatform
-import org.siamdev.zappos.LocalSettingVM
+import org.siamdev.zappos.LocalSettingState
 import org.siamdev.zappos.ui.components.common.CurrencyCodeIcon
 import org.siamdev.zappos.ui.components.product.ProductListItem
 import org.siamdev.zappos.ui.components.product.ProductListItemDefaults
-import org.siamdev.zappos.ui.screens.setting.SettingSurfaceImpl
-import org.siamdev.zappos.ui.screens.setting.SettingViewModel
 import org.siamdev.zappos.theme.ThemeMode
 import org.siamdev.zappos.theme.ZapposTheme
 
@@ -254,10 +251,10 @@ private fun MenuImage(
 
 @Composable
 private fun PriceRow(priceBaht: String, priceSat: String?) {
-    val setting = LocalSettingVM.current
-    val showSecondary = setting.showSecondaryCurrency
-    val primaryCode = setting.primaryCurrency?.code ?: "THB"
-    val secondaryCode = setting.secondaryCurrency?.code ?: "SATS"
+    val setting = LocalSettingState.current
+    val showSecondary = setting.currency.showSecondary
+    val primaryCode = setting.currency.primaryCode
+    val secondaryCode = setting.currency.secondaryCode
     Row(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(10.dp)
@@ -342,18 +339,16 @@ private fun AddButton(
 @Composable
 fun MenuItemCardListPreview() {
     ZapposTheme(themeMode = ThemeMode.LIGHT) {
-        CompositionLocalProvider(LocalSettingVM provides SettingSurfaceImpl(SettingViewModel())) {
-            MenuItemCard(
-                imageUrl = "https://images.pexels.com/photos/350478/pexels-photo-350478.jpeg",
-                name = "Mocha",
-                priceBaht = "70.00",
-                priceSat = "17,500",
-                category = "Beverages · Coffee",
-                isRecommended = true,
-                count = 2u,
-                viewMode = MenuViewMode.LIST
-            )
-        }
+        MenuItemCard(
+            imageUrl = "https://images.pexels.com/photos/350478/pexels-photo-350478.jpeg",
+            name = "Mocha",
+            priceBaht = "70.00",
+            priceSat = "17,500",
+            category = "Beverages · Coffee",
+            isRecommended = true,
+            count = 2u,
+            viewMode = MenuViewMode.LIST
+        )
     }
 }
 
@@ -362,17 +357,15 @@ fun MenuItemCardListPreview() {
 @Composable
 fun MenuItemCardChevronPreview() {
     ZapposTheme(themeMode = ThemeMode.LIGHT) {
-        CompositionLocalProvider(LocalSettingVM provides SettingSurfaceImpl(SettingViewModel())) {
-            MenuItemCard(
-                imageUrl = "https://images.pexels.com/photos/2611811/pexels-photo-2611811.jpeg",
-                name = "Matcha Latte",
-                priceBaht = "100.00",
-                category = "Beverages · Tea",
-                isRecommended = true,
-                showChevron = true,
-                viewMode = MenuViewMode.LIST
-            )
-        }
+        MenuItemCard(
+            imageUrl = "https://images.pexels.com/photos/2611811/pexels-photo-2611811.jpeg",
+            name = "Matcha Latte",
+            priceBaht = "100.00",
+            category = "Beverages · Tea",
+            isRecommended = true,
+            showChevron = true,
+            viewMode = MenuViewMode.LIST
+        )
     }
 }
 
@@ -381,17 +374,15 @@ fun MenuItemCardChevronPreview() {
 @Composable
 fun MenuItemCardGridPreview() {
     ZapposTheme(themeMode = ThemeMode.LIGHT) {
-        CompositionLocalProvider(LocalSettingVM provides SettingSurfaceImpl(SettingViewModel())) {
-            MenuItemCard(
-                imageUrl = "https://images.pexels.com/photos/18635175/pexels-photo-18635175.jpeg",
-                name = "Matcha Coffee",
-                priceBaht = "100.00",
-                priceSat = "26,000",
-                category = "Matcha",
-                isRecommended = true,
-                count = 1u,
-                viewMode = MenuViewMode.GRID
-            )
-        }
+        MenuItemCard(
+            imageUrl = "https://images.pexels.com/photos/18635175/pexels-photo-18635175.jpeg",
+            name = "Matcha Coffee",
+            priceBaht = "100.00",
+            priceSat = "26,000",
+            category = "Matcha",
+            isRecommended = true,
+            count = 1u,
+            viewMode = MenuViewMode.GRID
+        )
     }
 }

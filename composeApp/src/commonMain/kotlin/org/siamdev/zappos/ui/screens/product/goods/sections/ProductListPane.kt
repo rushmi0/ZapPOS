@@ -12,20 +12,16 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.SearchOff
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import org.siamdev.zappos.LocalSettingVM
 import org.siamdev.zappos.ui.components.common.MaterialButton
 import org.siamdev.zappos.ui.components.menu.DefaultProductCategories
 import org.siamdev.zappos.ui.components.menu.SearchFilter
 import org.siamdev.zappos.ui.components.product.ProductListItem
 import org.siamdev.zappos.data.source.MasterEvent
 import org.siamdev.zappos.ui.screens.product.goods.sampleProducts
-import org.siamdev.zappos.ui.screens.setting.SettingSurfaceImpl
-import org.siamdev.zappos.ui.screens.setting.SettingViewModel
 import org.siamdev.zappos.theme.ThemeMode
 import org.siamdev.zappos.theme.ZapposTheme
 
@@ -119,13 +115,11 @@ internal fun ProductListPane(
 @Composable
 private fun ProductListPanePreview() {
     ZapposTheme(themeMode = ThemeMode.LIGHT) {
-        CompositionLocalProvider(LocalSettingVM provides SettingSurfaceImpl(SettingViewModel())) {
-            ProductListPane(
-                products = sampleProducts(),
-                selectedId = null,
-                onSelect = {},
-            )
-        }
+        ProductListPane(
+            products = sampleProducts(),
+            selectedId = null,
+            onSelect = {},
+        )
     }
 }
 
@@ -138,13 +132,11 @@ private fun ProductListPanePreview() {
 @Composable
 private fun ProductListPaneSelectedPreview() {
     ZapposTheme(themeMode = ThemeMode.LIGHT) {
-        CompositionLocalProvider(LocalSettingVM provides SettingSurfaceImpl(SettingViewModel())) {
-            val products = sampleProducts()
-            ProductListPane(
-                products = products,
-                selectedId = products.first().id,
-                onSelect = {},
-            )
-        }
+        val products = sampleProducts()
+        ProductListPane(
+            products = products,
+            selectedId = products.first().id,
+            onSelect = {},
+        )
     }
 }

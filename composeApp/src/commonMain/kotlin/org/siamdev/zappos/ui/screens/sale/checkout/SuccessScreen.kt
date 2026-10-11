@@ -11,9 +11,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.SideEffect
-import androidx.compose.runtime.CompositionLocalProvider
-import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -21,19 +18,14 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import org.siamdev.zappos.LocalProgressVM
 import org.siamdev.zappos.ui.components.common.MaterialButton
 import org.siamdev.zappos.ui.components.progress.ProgressBar
 import org.siamdev.zappos.ui.screens.sale.SaleOrderSteps
-import org.siamdev.zappos.ui.components.progress.ProgressViewModel
-import org.siamdev.zappos.ui.components.progress.ProgressSurfaceImpl
 
 private val GreenSuccess = Color(0xFF4CAF50)
 
 @Composable
 fun SuccessScreen(onOpen: () -> Unit = {}) {
-    val progressVM = LocalProgressVM.current
-    SideEffect { progressVM.setup(SaleOrderSteps, SaleOrderSteps.lastIndex) }
 
     Column(
         modifier = Modifier
@@ -42,7 +34,7 @@ fun SuccessScreen(onOpen: () -> Unit = {}) {
             .windowInsetsPadding(WindowInsets.systemBars)
     ) {
         Spacer(Modifier.height(8.dp))
-        ProgressBar()
+        ProgressBar(steps = SaleOrderSteps, currentStep = SaleOrderSteps.lastIndex)
 
         // Center content
         Column(
@@ -110,9 +102,5 @@ fun SuccessScreen(onOpen: () -> Unit = {}) {
 @Preview(showBackground = true, widthDp = 411, heightDp = 891)
 @Composable
 fun SuccessScreenPreview() {
-    val progressVM = remember { ProgressViewModel() }
-    val progressSurface = remember(progressVM) { ProgressSurfaceImpl(progressVM) }
-    CompositionLocalProvider(LocalProgressVM provides progressSurface) {
-        MaterialTheme { SuccessScreen() }
-    }
+    MaterialTheme { SuccessScreen() }
 }

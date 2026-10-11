@@ -21,6 +21,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import org.jetbrains.compose.resources.painterResource
+import org.siamdev.zappos.LocalSettingState
 import org.siamdev.zappos.LocalSettingVM
 import org.siamdev.zappos.data.source.local.model.CurrencyItem
 import org.siamdev.zappos.ui.components.common.CurrencyCodeIcon
@@ -52,11 +53,12 @@ fun CurrencySettingScreen(onNavigateBack: () -> Unit = {}) {
 @Composable
 internal fun CurrencySettingContent(modifier: Modifier = Modifier) {
     val setting = LocalSettingVM.current
-    val currencies = setting.currencyOptions
-    val primaryCcy = setting.primaryCurrency
-    val secondaryCcy = setting.secondaryCurrency
-    val showSecondary = setting.showSecondaryCurrency
-    val isLoading = setting.isLoading
+    val state = LocalSettingState.current
+    val currencies = state.currency.options
+    val primaryCcy = state.currency.primary
+    val secondaryCcy = state.currency.secondary
+    val showSecondary = state.currency.showSecondary
+    val isLoading = state.isLoading
 
     if (isLoading) {
         Box(modifier.fillMaxSize(), contentAlignment = Alignment.Center) {

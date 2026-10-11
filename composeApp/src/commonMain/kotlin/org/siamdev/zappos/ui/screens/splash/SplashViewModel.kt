@@ -5,24 +5,30 @@
 package org.siamdev.zappos.ui.screens.splash
 
 import androidx.lifecycle.ViewModel
-import androidx.lifecycle.viewModelScope
-import kotlinx.coroutines.flow.MutableSharedFlow
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.SharedFlow
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asSharedFlow
-import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.update
-import kotlinx.coroutines.launch
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
+import org.orbitmvi.orbit.OrbitContainer
+import org.orbitmvi.orbit.OrbitContainerHost
+import org.orbitmvi.orbit.syntax.Syntax
+import org.orbitmvi.orbit.viewmodel.orbitContainer
 import org.siamdev.zappos.cache.ImagePreloader
 import org.siamdev.zappos.cache.ThumbnailSection
+import org.siamdev.zappos.ui.UiContainerSettings
+import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
+import kotlin.time.Duration.Companion.seconds
 
 private const val TAG = "SplashVM"
 
-class SplashViewModel : ViewModel() {
+class SplashViewModel(
+    private val splashDuration: Duration = 3000.milliseconds,
+    private val preloadTimeout: Duration = 5.seconds,
+    private val preloadImages: suspend (onProgress: (Float) -> Unit) -> Unit = { onProgress ->
+        ImagePreloader.preloadMenuItems(section = ThumbnailSection.PRODUCTS, onProgress = onProgress)
+    },
+) : ViewModel(), OrbitContainerHost<SplashViewModel.State, SplashViewModel.State, SplashViewModel.SideEffect> {
 
     data class State(
         val isReady: Boolean = false,
@@ -30,48 +36,38 @@ class SplashViewModel : ViewModel() {
         val preloadProgress: Float = 0f
     )
 
-    sealed class SideEffect {
-        data object NavigateAway : SideEffect()
+    sealed interface SideEffect {
+        data object NavigateAway : SideEffect
     }
 
-    private val _state = MutableStateFlow(State())
-    val state: StateFlow<State> = _state.asStateFlow()
+    // onCreate runs once, when the splash UI first subscribes.
+    override val container: OrbitContainer<State, State, SideEffect> =
+        orbitContainer(State(), buildSettings = UiContainerSettings) { runSplash() }
 
-    private val _sideEffect = MutableSharedFlow<SideEffect>(replay = 0)
-    val sideEffect: SharedFlow<SideEffect> = _sideEffect.asSharedFlow()
-
-    init {
-        viewModelScope.launch {
-            println("[$TAG] Splash started")
-            val delayJob = launch { runSplashDelay() }
-            val preloadJob = launch { preloadImages() }
-
-            delayJob.join()
-            println("[$TAG] Splash delay done – waiting for preload (max 5 s)")
-            withTimeoutOrNull(5_000) { preloadJob.join() }
-
-            println("[$TAG] Ready – navigating")
-            _state.update { it.copy(isReady = true) }
-            _sideEffect.emit(SideEffect.NavigateAway)
+    private suspend fun Syntax<State, SideEffect>.runSplash() = coroutineScope {
+        println("[$TAG] Splash started")
+        val delayJob = launch {
+            delay(splashDuration)
+            reduce { state.copy(isDone = true) }
+            println("[$TAG] Splash delay done")
         }
-    }
-
-    private suspend fun runSplashDelay() {
-        delay(3000.milliseconds)
-        _state.update { it.copy(isDone = true) }
-        println("[$TAG] Splash delay done")
-    }
-
-    private suspend fun preloadImages() {
-        println("[$TAG] Preload begin")
-        ImagePreloader.preloadMenuItems(
-            section = ThumbnailSection.PRODUCTS,
-            onProgress = { progress ->
-                _state.update { it.copy(preloadProgress = progress) }
+        val preloadJob = launch {
+            println("[$TAG] Preload begin")
+            preloadImages { progress ->
+                intent { reduce { state.copy(preloadProgress = progress) } }
                 val pct = (progress * 100).toInt()
                 if (pct % 20 == 0) println("[$TAG] Preload $pct%")
             }
-        )
-        println("[$TAG] Preload end")
+            println("[$TAG] Preload end")
+        }
+
+        delayJob.join()
+        println("[$TAG] Splash delay done – waiting for preload (max $preloadTimeout)")
+        // A slow preload must not hold the splash; it keeps running in the background.
+        withTimeoutOrNull(preloadTimeout) { preloadJob.join() }
+
+        println("[$TAG] Ready – navigating")
+        reduce { state.copy(isReady = true) }
+        postSideEffect(SideEffect.NavigateAway)
     }
 }

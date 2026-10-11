@@ -91,6 +91,8 @@ kotlin {
             implementation(libs.jetbrains.lifecycle.viewmodel)
             implementation(libs.coil.network.ktor3)
             implementation(libs.coil.compose)
+            implementation(libs.orbit.viewmodel)
+            implementation(libs.orbit.compose)
 
             implementation("io.github.vinceglb:filekit-core:0.14.1")
             implementation("io.github.vinceglb:filekit-dialogs:0.14.1")
@@ -100,6 +102,8 @@ kotlin {
 
         commonTest.dependencies {
             implementation(libs.kotlin.test)
+            implementation(libs.kotlinx.coroutines.test)
+            implementation(libs.orbit.test)
         }
 
         jvmMain {

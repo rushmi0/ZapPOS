@@ -18,8 +18,7 @@ import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
-import org.siamdev.zappos.LocalProgressVM
-import org.siamdev.zappos.LocalSettingVM
+import org.siamdev.zappos.LocalSettingState
 import org.siamdev.zappos.ui.components.common.CurrencyCodeIcon
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -31,21 +30,17 @@ import androidx.compose.ui.tooling.preview.Preview
 import org.siamdev.zappos.ui.components.common.MaterialButton
 import org.siamdev.zappos.ui.components.order.OrderItemList
 import org.siamdev.zappos.ui.components.progress.ProgressBar
-import org.siamdev.zappos.ui.components.progress.ProgressSurfaceImpl
 import org.siamdev.zappos.ui.components.common.WorkspaceHeader
 import org.siamdev.zappos.ui.screens.sale.SaleOrderSteps
 import org.siamdev.zappos.utils.DateTimeUtils
-import org.siamdev.zappos.ui.screens.setting.SettingSurfaceImpl
-import org.siamdev.zappos.ui.screens.setting.SettingViewModel
-import org.siamdev.zappos.ui.components.progress.ProgressViewModel
 
 @Composable
 fun PaymentProcessingScreen(
-    checkout: CheckoutSurface,
+    state: CheckoutViewModel.State,
     onConfirm: () -> Unit = {},
     onBack: () -> Unit = {}
 ) {
-    val selectedMethod = checkout.selectedPaymentMethod
+    val selectedMethod = state.payment.selectedMethod
     val txId = remember { "TX${(10000..99999).random()}" }
     val title = when (selectedMethod) {
         PaymentMethod.BITCOIN_LIGHTNING -> "Lightning Invoice"
@@ -65,7 +60,7 @@ fun PaymentProcessingScreen(
     ) {
         if (maxWidth >= 750.dp) {
             DesktopProcessingLayout(
-                checkout = checkout,
+                state = state,
                 txId = txId,
                 title = title,
                 showQr = showQr,
@@ -74,7 +69,7 @@ fun PaymentProcessingScreen(
             )
         } else {
             MobileProcessingLayout(
-                checkout = checkout,
+                state = state,
                 txId = txId,
                 title = title,
                 showQr = showQr,
@@ -87,7 +82,7 @@ fun PaymentProcessingScreen(
 
 @Composable
 private fun MobileProcessingLayout(
-    checkout: CheckoutSurface,
+    state: CheckoutViewModel.State,
     txId: String,
     title: String,
     showQr: Boolean,
@@ -96,14 +91,12 @@ private fun MobileProcessingLayout(
 ) {
     var orderExpanded by remember { mutableStateOf(false) }
 
-    val progress = LocalProgressVM.current
-    SideEffect { progress.setup(SaleOrderSteps, 2) }
 
-    val orderItems = checkout.orderItems
+    val orderItems = state.order.items
 
     Column(modifier = Modifier.fillMaxSize()) {
         WorkspaceHeader(title = title, subtitle = "Sales · processing", onNavigateBack = onBack)
-        ProgressBar()
+        ProgressBar(steps = SaleOrderSteps, currentStep = 2)
 
         Text(
             text = txId,
@@ -220,7 +213,7 @@ private fun MobileProcessingLayout(
             item { SectionLabel("PAYMENT DETAIL") }
 
             item {
-                ProcessingDetailCard(checkout = checkout, txId = txId)
+                ProcessingDetailCard(state = state, txId = txId)
             }
         }
 
@@ -237,21 +230,19 @@ private fun MobileProcessingLayout(
 
 @Composable
 private fun DesktopProcessingLayout(
-    checkout: CheckoutSurface,
+    state: CheckoutViewModel.State,
     txId: String,
     title: String,
     showQr: Boolean,
     onConfirm: () -> Unit,
     onBack: () -> Unit
 ) {
-    val progress = LocalProgressVM.current
-    SideEffect { progress.setup(SaleOrderSteps, 2) }
 
-    val orderItems = checkout.orderItems
+    val orderItems = state.order.items
 
     Column(modifier = Modifier.fillMaxSize()) {
         WorkspaceHeader(title = title, subtitle = "Sales · processing", onNavigateBack = onBack)
-        ProgressBar()
+        ProgressBar(steps = SaleOrderSteps, currentStep = 2)
 
         Row(
             modifier = Modifier
@@ -298,7 +289,7 @@ private fun DesktopProcessingLayout(
                     .wrapContentHeight(),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                ProcessingDetailCard(checkout = checkout, txId = txId)
+                ProcessingDetailCard(state = state, txId = txId)
                 MaterialButton(
                     modifier = Modifier.fillMaxWidth(),
                     text = "Done",
@@ -366,16 +357,16 @@ private fun ProcessingQrSection(modifier: Modifier = Modifier) {
 
 @Composable
 private fun ProcessingDetailCard(
-    checkout: CheckoutSurface,
+    state: CheckoutViewModel.State,
     txId: String,
     modifier: Modifier = Modifier
 ) {
-    val taxPercent = checkout.taxPercent
+    val taxPercent = state.order.taxPercent
     val hasVat = taxPercent > 0f
-    val setting = LocalSettingVM.current
-    val primaryCode = setting.primaryCurrency?.code ?: "THB"
-    val secondaryCode = setting.secondaryCurrency?.code ?: "SATS"
-    val showSecondary = setting.showSecondaryCurrency
+    val setting = LocalSettingState.current
+    val primaryCode = setting.currency.primaryCode
+    val secondaryCode = setting.currency.secondaryCode
+    val showSecondary = setting.currency.showSecondary
 
     Column(
         modifier = modifier
@@ -455,7 +446,7 @@ private fun ProcessingDetailCard(
                         tint = MaterialTheme.colorScheme.onSurface
                     )
                     Text(
-                        checkout.grandTotalFiat,
+                        state.order.grandTotalFiat,
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.onSurface
@@ -472,7 +463,7 @@ private fun ProcessingDetailCard(
                             tint = Color(0xFFFFB700)
                         )
                         Text(
-                            checkout.grandTotalSat,
+                            state.order.grandTotalSat,
                             style = MaterialTheme.typography.bodyMedium,
                             color = Color(0xFFFFB700),
                             fontWeight = FontWeight.SemiBold
@@ -484,61 +475,50 @@ private fun ProcessingDetailCard(
     }
 }
 
-private val processingPreviewVM = CheckoutViewModel().apply {
-    syncFromMenu(
-        items = listOf(
-            CheckoutItem("Mocha", 2u, "70.00", "17,500"),
-            CheckoutItem("Matcha Latte", 1u, "100.00", "26,000"),
-            CheckoutItem("Latte", 3u, "70.00", "17,500"),
-            CheckoutItem("Espresso", 2u, "50.00", "12,500"),
-            CheckoutItem("Americano", 1u, "60.00", "15,000"),
-            CheckoutItem("Cappuccino", 2u, "75.00", "18,750"),
-            CheckoutItem("Flat White", 1u, "80.00", "20,000"),
-            CheckoutItem("Caramel Macchiato", 3u, "90.00", "22,500"),
-            CheckoutItem("Iced Coffee", 2u, "65.00", "16,250"),
-            CheckoutItem("Thai Tea", 4u, "60.00", "15,000"),
-            CheckoutItem("Green Tea", 1u, "55.00", "13,750"),
-            CheckoutItem("Hot Chocolate", 2u, "85.00", "21,250"),
-            CheckoutItem("Milk", 1u, "50.00", "12,500"),
-            CheckoutItem("Matcha Coffee", 2u, "100.00", "26,000"),
-            CheckoutItem("Vanilla Latte", 1u, "85.00", "21,250"),
-            CheckoutItem("Hazelnut Latte", 2u, "90.00", "22,500"),
-            CheckoutItem("Cold Brew", 1u, "75.00", "18,750"),
-            CheckoutItem("Nitro Coffee", 2u, "95.00", "23,750"),
-            CheckoutItem("Oat Milk Latte", 1u, "90.00", "22,500"),
-            CheckoutItem("Coconut Latte", 3u, "85.00", "21,250")
-        ),
-        fiat = "61,020.00",
-        sat = "1,683,138"
+private val processingPreviewState = CheckoutViewModel.State().withOrder(
+    items = listOf(
+        CheckoutItem("Mocha", 2u, "70.00", "17,500"),
+        CheckoutItem("Matcha Latte", 1u, "100.00", "26,000"),
+        CheckoutItem("Latte", 3u, "70.00", "17,500"),
+        CheckoutItem("Espresso", 2u, "50.00", "12,500"),
+        CheckoutItem("Americano", 1u, "60.00", "15,000"),
+        CheckoutItem("Cappuccino", 2u, "75.00", "18,750"),
+        CheckoutItem("Flat White", 1u, "80.00", "20,000"),
+        CheckoutItem("Caramel Macchiato", 3u, "90.00", "22,500"),
+        CheckoutItem("Iced Coffee", 2u, "65.00", "16,250"),
+        CheckoutItem("Thai Tea", 4u, "60.00", "15,000"),
+        CheckoutItem("Green Tea", 1u, "55.00", "13,750"),
+        CheckoutItem("Hot Chocolate", 2u, "85.00", "21,250"),
+        CheckoutItem("Milk", 1u, "50.00", "12,500"),
+        CheckoutItem("Matcha Coffee", 2u, "100.00", "26,000"),
+        CheckoutItem("Vanilla Latte", 1u, "85.00", "21,250"),
+        CheckoutItem("Hazelnut Latte", 2u, "90.00", "22,500"),
+        CheckoutItem("Cold Brew", 1u, "75.00", "18,750"),
+        CheckoutItem("Nitro Coffee", 2u, "95.00", "23,750"),
+        CheckoutItem("Oat Milk Latte", 1u, "90.00", "22,500"),
+        CheckoutItem("Coconut Latte", 3u, "85.00", "21,250")
+    ),
+    totalFiat = "61,020.00",
+    totalSat = "1,683,138"
+).let {
+    it.copy(
+        step = CheckoutStep.PROCESSING,
+        payment = it.payment.copy(selectedMethod = PaymentMethod.BITCOIN_LIGHTNING)
     )
-    selectMethod(PaymentMethod.BITCOIN_LIGHTNING)
-    confirmPayment()
 }
 
 @Preview(showBackground = true, widthDp = 411, heightDp = 891)
 @Composable
 fun PaymentProcessingMobilePreview() {
-    val progressVM = remember { ProgressViewModel() }
-    val settingVM = remember { SettingViewModel() }
-
-    CompositionLocalProvider(
-        LocalProgressVM provides ProgressSurfaceImpl(progressVM),
-        LocalSettingVM provides SettingSurfaceImpl(settingVM)
-    ) {
-        MaterialTheme { PaymentProcessingScreen(checkout = CheckoutSurfaceImpl(processingPreviewVM)) }
+    MaterialTheme {
+        PaymentProcessingScreen(state = processingPreviewState)
     }
 }
 
 @Preview(showBackground = true, widthDp = 1280, heightDp = 800)
 @Composable
 fun PaymentProcessingDesktopPreview() {
-    val progressVM = remember { ProgressViewModel() }
-    val settingVM = remember { SettingViewModel() }
-
-    CompositionLocalProvider(
-        LocalProgressVM provides ProgressSurfaceImpl(progressVM),
-        LocalSettingVM provides SettingSurfaceImpl(settingVM)
-    ) {
-        MaterialTheme { PaymentProcessingScreen(checkout = CheckoutSurfaceImpl(processingPreviewVM)) }
+    MaterialTheme {
+        PaymentProcessingScreen(state = processingPreviewState)
     }
 }

@@ -5,23 +5,19 @@
 package org.siamdev.zappos.ui.screens.sale
 
 import androidx.lifecycle.ViewModel
-import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.SharingStarted
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.flow.stateIn
-import kotlinx.coroutines.flow.update
-import kotlinx.coroutines.launch
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.Transient
 import kotlinx.serialization.json.Json
 import org.siamdev.zappos.cache.ImagePreloader
 import org.siamdev.zappos.cache.ThumbnailSection
+import org.orbitmvi.orbit.OrbitContainer
+import org.orbitmvi.orbit.OrbitContainerHost
+import org.orbitmvi.orbit.viewmodel.orbitContainer
+import org.siamdev.zappos.ui.UiContainerSettings
 import org.siamdev.zappos.ui.components.menu.MenuViewMode
-import org.siamdev.zappos.ui.components.product.ProductBrowser
 import kotlin.time.Duration.Companion.milliseconds
 
 private const val TAG = "MainMenu"
@@ -66,9 +62,20 @@ fun loadMenuItems(): List<MenuItem> =
     menuJson.decodeFromString<List<MenuItem>>(MOCK_MENU_JSON)
 
 
+/** Mock product fetch: stands in for the network call until a product API exists. */
+private suspend fun fetchMenuItems(): List<MenuItem> {
+    delay(2000.milliseconds)
+    return loadMenuItems()
+}
+
+/**
+ * The menu catalogue and the cart built from it. App-scoped: Menu, Confirm Order and Checkout all
+ * read the same cart.
+ */
 class MainMenuViewModel(
-    private val autoLoad: Boolean = true
-) : ViewModel(), ProductBrowser {
+    private val fetchItems: suspend () -> List<MenuItem> = ::fetchMenuItems,
+    private val fetchThumbnails: suspend () -> Unit = ::fetchMissingThumbnails,
+) : ViewModel(), OrbitContainerHost<MainMenuViewModel.State, MainMenuViewModel.State, MainMenuViewModel.SideEffect> {
 
     data class State(
         val isLoading: Boolean = false,
@@ -82,167 +89,97 @@ class MainMenuViewModel(
             val totalFiat: String = "0.00",
             val totalSat: String = "0"
         )
-    }
 
-    sealed class SideEffect
+        val selectedItems: List<MenuItem> get() = catalog.items.filter { it.count > 0u }
 
-    private val _state = MutableStateFlow(State())
-    val state: StateFlow<State> = _state.asStateFlow()
-
-    override val browserState: StateFlow<ProductBrowser.BrowserState> = _state
-        .map { s ->
-            ProductBrowser.BrowserState(
-                items = s.catalog.items,
-                isLoading = s.isLoading
+        /** Replaces the catalogue and rebuilds the order (selection + totals) from it. */
+        fun withItems(items: List<MenuItem>): State {
+            val selected = items.filter { it.count > 0u }
+            return copy(
+                catalog = catalog.copy(items = items),
+                order = Order(
+                    selectedKeys = selected.map { it.id },
+                    totalFiat = formatNumber(items.sumOf { it.priceBaht.toDouble() * it.count.toDouble() }),
+                    totalSat = formatNumber(items.sumOf { it.priceSatValue * it.count.toDouble() })
+                )
             )
         }
-        .stateIn(viewModelScope, SharingStarted.Eagerly, ProductBrowser.BrowserState())
 
-    private var hasLoaded = false
-
-    private fun State.withRecomputedTotals(): State {
-        val items = catalog.items
-        return copy(
-            order = order.copy(
-                totalFiat = computeFiat(items),
-                totalSat = computeSat(items)
-            )
-        )
+        fun withItemCount(id: Int, count: (UInt) -> UInt): State =
+            withItems(catalog.items.map { if (it.id == id) it.copy(count = count(it.count)) else it })
     }
 
-    private fun computeFiat(items: List<MenuItem>): String {
-        var total = 0.0
-        for (item in items) total += item.priceBaht.toDouble() * item.count.toDouble()
-        return formatNumber(total)
+    sealed interface SideEffect {
+        data class Error(val message: String) : SideEffect
     }
 
-    private fun computeSat(items: List<MenuItem>): String {
-        var total = 0.0
-        for (item in items) {
-            val sat = item.priceSat.replace(",", "").toDoubleOrNull() ?: 0.0
-            total += sat * item.count.toDouble()
-        }
-        return formatNumber(total)
-    }
+    override val container: OrbitContainer<State, State, SideEffect> =
+        orbitContainer(State(), buildSettings = UiContainerSettings) { loadProducts() }
 
-    private fun formatNumber(value: Double): String {
-        val intPart = value.toLong()
-        val decPart = ((value - intPart) * 100).toInt()
-        val intStr = intPart.toString().reversed().chunked(3).joinToString(",").reversed()
-        return "$intStr.${decPart.toString().padStart(2, '0')}"
-    }
+    // Only touched on the main thread (the container's event loop runs there).
+    private var loadJob: Job? = null
 
-    private fun List<MenuItem>.updatedSelectedKeys(): List<Int> =
-        filter { it.count > 0u }.map { it.id }
-
-    fun setViewMode(mode: MenuViewMode) {
-        _state.update { it.copy(viewMode = mode) }
-    }
-
-    fun ensureLoaded() {
-        if (!autoLoad) return
-        loadProductsData()
-    }
-
-    fun reloadProductsData() {
-        hasLoaded = false
-        _state.update {
-            it.copy(
-                catalog = it.catalog.copy(items = emptyList()),
-                order = State.Order()
-            )
-        }
-        loadProductsData()
-    }
-
-    fun loadProductsData() {
-        if (hasLoaded || _state.value.isLoading) return
-
-        hasLoaded = true
-        _state.update { it.copy(isLoading = true) }
-
-        viewModelScope.launch {
+    /**
+     * Starts a catalogue load, cancelling one still in flight so a stale response can never
+     * overwrite a newer one.
+     */
+    private fun loadProducts(reset: Boolean = false) {
+        loadJob?.cancel()
+        loadJob = intent {
+            reduce {
+                if (reset) State(viewMode = state.viewMode, isLoading = true)
+                else state.copy(isLoading = true)
+            }
             println("[$TAG] Fetching product list from network...")
-            delay(2000.milliseconds)
-            val loaded = loadMenuItems()
-            _state.update {
-                it.copy(
-                    isLoading = false,
-                    catalog = it.catalog.copy(items = loaded)
-                ).withRecomputedTotals()
+            val loaded = try {
+                fetchItems()
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                reduce { state.copy(isLoading = false) }
+                postSideEffect(SideEffect.Error(e.message ?: "Could not load products"))
+                return@intent
             }
+            reduce { state.copy(isLoading = false).withItems(loaded) }
             println("[$TAG] Loaded ${loaded.size} products")
-            launch { fetchMissingThumbnails() }
+            fetchThumbnails()
         }
     }
 
-    private suspend fun fetchMissingThumbnails() {
-        println("[$TAG] Checking thumbnails for missing entries...")
-        ImagePreloader.preloadMenuItems(
-            section = ThumbnailSection.PRODUCTS,
-            onProgress = { progress ->
-                val pct = (progress * 100).toInt()
-                if (pct % 25 == 0) println("[$TAG] Thumbnail fetch progress: $pct%")
-            }
-        )
-        println("[$TAG] Thumbnail fetch complete")
+    fun reloadProductsData() = loadProducts(reset = true)
+
+    fun setViewMode(mode: MenuViewMode) = intent { reduce { state.copy(viewMode = mode) } }
+
+    fun addItem(id: Int) = intent { reduce { state.withItemCount(id) { it + 1u } } }
+
+    fun reduceItem(id: Int) = intent {
+        reduce { state.withItemCount(id) { if (it > 0u) it - 1u else it } }
     }
 
-    override fun reload() = reloadProductsData()
+    fun setItemCount(id: Int, count: UInt) = intent { reduce { state.withItemCount(id) { count } } }
 
-    override fun addItem(id: Int) {
-        _state.update { s ->
-            val items = s.catalog.items.map { item ->
-                if (item.id == id) item.copy(count = item.count + 1u) else item
-            }
-            s.copy(
-                catalog = s.catalog.copy(items = items),
-                order = s.order.copy(selectedKeys = items.updatedSelectedKeys())
-            ).withRecomputedTotals()
+    fun clearAllItems() = intent {
+        reduce { state.withItems(state.catalog.items.map { it.copy(count = 0u) }).copy(order = State.Order()) }
+    }
+}
+
+private suspend fun fetchMissingThumbnails() {
+    println("[$TAG] Checking thumbnails for missing entries...")
+    ImagePreloader.preloadMenuItems(
+        section = ThumbnailSection.PRODUCTS,
+        onProgress = { progress ->
+            val pct = (progress * 100).toInt()
+            if (pct % 25 == 0) println("[$TAG] Thumbnail fetch progress: $pct%")
         }
-    }
+    )
+    println("[$TAG] Thumbnail fetch complete")
+}
 
-    override fun reduceItem(id: Int) {
-        _state.update { s ->
-            val items = s.catalog.items.map { item ->
-                if (item.id == id && item.count > 0u) item.copy(count = item.count - 1u) else item
-            }
-            s.copy(
-                catalog = s.catalog.copy(items = items),
-                order = s.order.copy(selectedKeys = items.updatedSelectedKeys())
-            ).withRecomputedTotals()
-        }
-    }
+private val MenuItem.priceSatValue: Double get() = priceSat.replace(",", "").toDoubleOrNull() ?: 0.0
 
-    fun setItemCount(id: Int, count: UInt) {
-        _state.update { s ->
-            val items = s.catalog.items.map { item ->
-                if (item.id == id) item.copy(count = count) else item
-            }
-            s.copy(
-                catalog = s.catalog.copy(items = items),
-                order = s.order.copy(selectedKeys = items.updatedSelectedKeys())
-            ).withRecomputedTotals()
-        }
-    }
-
-    internal fun loadItemsForPreview(items: List<MenuItem>) {
-        _state.update { s ->
-            s.copy(
-                catalog = s.catalog.copy(items = items),
-                order = s.order.copy(selectedKeys = items.updatedSelectedKeys())
-            ).withRecomputedTotals()
-        }
-        hasLoaded = true
-    }
-
-    fun clearAllItems() {
-        _state.update { s ->
-            val cleared = s.catalog.items.map { it.copy(count = 0u) }
-            s.copy(
-                catalog = s.catalog.copy(items = cleared),
-                order = State.Order()
-            )
-        }
-    }
+private fun formatNumber(value: Double): String {
+    val intPart = value.toLong()
+    val decPart = ((value - intPart) * 100).toInt()
+    val intStr = intPart.toString().reversed().chunked(3).joinToString(",").reversed()
+    return "$intStr.${decPart.toString().padStart(2, '0')}"
 }

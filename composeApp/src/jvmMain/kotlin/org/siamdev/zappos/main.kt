@@ -5,11 +5,9 @@
 package org.siamdev.zappos
 
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.unit.dp
@@ -52,7 +50,7 @@ fun main() = application {
                 position = WindowPosition(Alignment.Center)
             )
         ) {
-            App(platform = platform, splashViewModel = splashVM)
+            App(platform = platform)
         }
     }
 }
@@ -77,15 +75,14 @@ fun DesktopSplashWindow(
                 height = 370.dp
             )
         ) {
-            SplashScreen(viewModel = splashViewModel)
-        }
-
-        val splashState by splashViewModel.state.collectAsState()
-        LaunchedEffect(splashState.isReady) {
-            if (splashState.isReady) {
-                isOpen = false
-                onFinished()
-            }
+            // Collected inside the Window: lifecycle-aware collection needs its LifecycleOwner.
+            SplashScreen(
+                viewModel = splashViewModel,
+                onSplashFinished = {
+                    isOpen = false
+                    onFinished()
+                }
+            )
         }
     }
 }

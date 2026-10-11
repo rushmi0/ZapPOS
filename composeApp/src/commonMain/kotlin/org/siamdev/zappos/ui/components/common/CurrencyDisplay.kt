@@ -23,7 +23,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import org.jetbrains.compose.resources.painterResource
-import org.siamdev.zappos.LocalSettingVM
+import org.siamdev.zappos.LocalSettingState
 import zappos.composeapp.generated.resources.Res
 import zappos.composeapp.generated.resources.bitcoin_unit
 import zappos.composeapp.generated.resources.sat_unit
@@ -90,8 +90,8 @@ fun PrimaryAmt(
     tint: Color = Color.Unspecified,
     color: Color = MaterialTheme.colorScheme.onSurface
 ) {
-    val setting = LocalSettingVM.current
-    val code = setting.primaryCurrency?.code ?: "THB"
+    val setting = LocalSettingState.current
+    val code = setting.currency.primaryCode
     Row(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(3.dp)
@@ -107,10 +107,10 @@ fun SecondaryAmt(
     iconSize: Dp,
     textStyle: TextStyle
 ) {
-    val setting = LocalSettingVM.current
-    if (!setting.showSecondaryCurrency) return
+    val setting = LocalSettingState.current
+    if (!setting.currency.showSecondary) return
 
-    val code = setting.secondaryCurrency?.code ?: "SATS"
+    val code = setting.currency.secondaryCode
     val cryptoColor = MaterialTheme.colorScheme.primary
 
     Row(

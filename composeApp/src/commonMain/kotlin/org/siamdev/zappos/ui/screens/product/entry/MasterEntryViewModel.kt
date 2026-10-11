@@ -5,16 +5,13 @@
 package org.siamdev.zappos.ui.screens.product.entry
 
 import androidx.lifecycle.ViewModel
-import androidx.lifecycle.viewModelScope
-import kotlinx.coroutines.flow.MutableSharedFlow
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.SharedFlow
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asSharedFlow
-import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.update
-import kotlinx.coroutines.launch
+import kotlinx.coroutines.CancellationException
+import org.orbitmvi.orbit.OrbitContainer
+import org.orbitmvi.orbit.OrbitContainerHost
+import org.orbitmvi.orbit.syntax.Syntax
+import org.orbitmvi.orbit.viewmodel.orbitContainer
 import org.siamdev.zappos.data.source.local.LocalSources
+import org.siamdev.zappos.data.source.local.contract.ProductSource
 import org.siamdev.zappos.data.source.local.model.InventoryConfig
 import org.siamdev.zappos.data.source.local.model.OptionGroupModel
 import org.siamdev.zappos.data.source.local.model.OptionItemModel
@@ -22,15 +19,24 @@ import org.siamdev.zappos.data.source.local.model.ProductModel
 import org.siamdev.zappos.data.source.local.model.RentalConfig
 import org.siamdev.zappos.data.source.local.model.ServiceConfig
 import org.siamdev.zappos.utils.DateTimeUtils
+import org.siamdev.zappos.ui.UiContainerSettings
 import org.siamdev.zappos.utils.TimeValue
 
-class MasterEntryViewModel : ViewModel() {
+/**
+ * Create / edit form for a product master record. One instance per back-stack entry; the
+ * product (if any) is loaded once in onCreate, so returning to the screen never discards edits.
+ */
+class MasterEntryViewModel(
+    private val productId: String? = null,
+    private val productSource: () -> ProductSource? = { LocalSources.product },
+) : ViewModel(), OrbitContainerHost<MasterEntryViewModel.State, MasterEntryViewModel.State, MasterEntryViewModel.SideEffect> {
 
     enum class Mode { CREATE, EDIT }
 
     data class State(
         val mode: Mode = Mode.CREATE,
         val isLoading: Boolean = false,
+        val isSaving: Boolean = false,
         val entryType: EntryType = EntryType.GOODS,
         val productId: String? = null,
         val showCostPrice: Boolean = false,
@@ -97,55 +103,81 @@ class MasterEntryViewModel : ViewModel() {
             val sendOrderTo: String = "None",
             val displayOrder: String = "0",
         )
+
+        val isEditMode: Boolean get() = mode == Mode.EDIT
+        val isFormValid: Boolean get() = detail.name.isNotBlank() && pricing.price.isNotBlank()
+        val unitOptions: List<String> get() = unitOptionsFor(entryType)
+
+        /** Switching type resets the unit to that type's default. */
+        fun withEntryType(type: EntryType): State =
+            copy(entryType = type, pricing = pricing.copy(unit = defaultUnitFor(type)))
+
+        /** Sub-categories belong to a category, so changing the category clears it. */
+        fun withCategory(category: String): State =
+            copy(detail = detail.copy(category = category, subCategory = null))
     }
 
-    sealed class SideEffect {
-        data object SaveSuccess : SideEffect()
-        data class SaveError(val message: String) : SideEffect()
-        data object NavigateBack : SideEffect()
+    sealed interface SideEffect {
+        data object SaveSuccess : SideEffect
+        data class Error(val message: String) : SideEffect
+        data object NavigateBack : SideEffect
     }
 
-    private val _state = MutableStateFlow(State())
-    val state: StateFlow<State> = _state.asStateFlow()
+    override val container: OrbitContainer<State, State, SideEffect> = orbitContainer(
+        initialState = if (productId == null) State()
+        else State(mode = Mode.EDIT, productId = productId, isLoading = true),
+        buildSettings = UiContainerSettings,
+        onCreate = { if (productId != null) load(productId) }
+    )
 
-    private val _effect = MutableSharedFlow<SideEffect>(extraBufferCapacity = 1)
-    val effect: SharedFlow<SideEffect> = _effect.asSharedFlow()
-
-    fun init(productId: String?) {
-        if (productId == null) {
-            _state.update { State() }
-            return
-        }
-        _state.update { it.copy(mode = Mode.EDIT, productId = productId, isLoading = true) }
-        viewModelScope.launch {
-            val product = LocalSources.product?.getById(productId)
-            _state.update { if (product != null) it.loadFrom(product) else it.copy(isLoading = false) }
-        }
-    }
-
-    fun update(block: State.() -> State) = _state.update { it.block() }
-
-    fun save() {
-        viewModelScope.launch {
-            val model = _state.value.toProductModel()
-            val result = LocalSources.product?.save(model)
-            if (result == null || result.isSuccess) {
-                _effect.emit(SideEffect.SaveSuccess)
-            } else {
-                _effect.emit(
-                    SideEffect.SaveError(
-                        result.exceptionOrNull()?.message ?: "Save failed"
-                    )
-                )
-            }
+    private suspend fun Syntax<State, SideEffect>.load(id: String) {
+        try {
+            val product = productSource()?.getById(id)
+            reduce { if (product != null) state.loadFrom(product) else state.copy(isLoading = false) }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            reduce { state.copy(isLoading = false) }
+            postSideEffect(SideEffect.Error(e.message ?: "Could not load product"))
         }
     }
 
-    fun discard() {
-        viewModelScope.launch {
-            _effect.emit(SideEffect.NavigateBack)
+    /** Applies a field edit. Runs synchronously on the main thread (see UiContainerSettings). */
+    fun edit(transform: State.() -> State) = intent { reduce { state.transform() } }
+
+    fun save() = intent {
+        if (!state.isFormValid || state.isSaving) return@intent
+        reduce { state.copy(isSaving = true) }
+        val result = try {
+            productSource()?.save(state.toProductModel()) ?: Result.success(Unit)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Result.failure(e)
         }
+        reduce { state.copy(isSaving = false) }
+        result.fold(
+            onSuccess = { postSideEffect(SideEffect.SaveSuccess) },
+            onFailure = { postSideEffect(SideEffect.Error(it.message ?: "Save failed")) },
+        )
     }
+
+    fun discard() = intent { postSideEffect(SideEffect.NavigateBack) }
+}
+
+/** Applies a form edit; the section composables take one of these instead of the ViewModel. */
+internal typealias EntryFormEdit = (MasterEntryViewModel.State.() -> MasterEntryViewModel.State) -> Unit
+
+internal fun defaultUnitFor(type: EntryType): String = when (type) {
+    EntryType.GOODS -> "piece"
+    EntryType.SERVICE -> "hour"
+    EntryType.RENTAL -> "hour"
+}
+
+internal fun unitOptionsFor(type: EntryType): List<String> = when (type) {
+    EntryType.GOODS -> listOf("cup", "plate", "bowl", "piece", "skewer", "bottle", "pack", "kg", "box")
+    EntryType.SERVICE -> listOf("session", "person", "hour", "course", "class", "month")
+    EntryType.RENTAL -> listOf("hour", "court", "field", "table", "room", "day")
 }
 
 private fun MasterEntryViewModel.State.loadFrom(product: ProductModel): MasterEntryViewModel.State {
@@ -229,7 +261,7 @@ private fun MasterEntryViewModel.State.loadFrom(product: ProductModel): MasterEn
     )
 }
 
-private fun MasterEntryViewModel.State.toProductModel(): ProductModel {
+internal fun MasterEntryViewModel.State.toProductModel(): ProductModel {
     val kind = when (entryType) {
         EntryType.GOODS -> "1000"
         EntryType.SERVICE -> "1001"

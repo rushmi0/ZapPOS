@@ -26,7 +26,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import org.siamdev.zappos.LocalSettingVM
 import androidx.compose.runtime.CompositionLocalProvider
 import org.siamdev.zappos.ui.components.menu.SearchFilter
-import org.siamdev.zappos.ui.screens.setting.SettingSurfaceImpl
+import org.orbitmvi.orbit.compose.collectSideEffect
 import org.siamdev.zappos.ui.components.common.WorkspaceHeader
 import org.siamdev.zappos.ui.components.gesture.SwipeAnimatedContent
 import org.siamdev.zappos.ui.screens.setting.appearance.AppearanceSettingContent
@@ -62,12 +62,11 @@ fun SettingScreen(
     onLogout: () -> Unit = {},
     initialSelected: SettingInfo? = null,
 ) {
-    val setting = LocalSettingVM.current
     val snackbarHostState = remember { SnackbarHostState() }
 
-    LaunchedEffect(Unit) {
-        setting.errors.collect { message ->
-            snackbarHostState.showSnackbar(message)
+    LocalSettingVM.current.collectSideEffect { effect ->
+        when (effect) {
+            is SettingViewModel.SideEffect.Error -> snackbarHostState.showSnackbar(effect.message)
         }
     }
 
@@ -398,8 +397,8 @@ private fun getSettingItems() = listOf(
 @Preview(showBackground = true, widthDp = 411, heightDp = 891)
 @Composable
 private fun SettingScreenMobilePreview() {
-    MaterialTheme {
-        CompositionLocalProvider(LocalSettingVM provides SettingSurfaceImpl(SettingViewModel())) {
+    CompositionLocalProvider(LocalSettingVM provides remember { SettingViewModel() }) {
+        MaterialTheme {
             SettingScreen()
         }
     }
@@ -408,8 +407,8 @@ private fun SettingScreenMobilePreview() {
 @Preview(showBackground = true, widthDp = 1280, heightDp = 800)
 @Composable
 private fun SettingScreenDesktopPreview() {
-    MaterialTheme {
-        CompositionLocalProvider(LocalSettingVM provides SettingSurfaceImpl(SettingViewModel())) {
+    CompositionLocalProvider(LocalSettingVM provides remember { SettingViewModel() }) {
+        MaterialTheme {
             SettingScreen()
         }
     }
@@ -417,8 +416,8 @@ private fun SettingScreenDesktopPreview() {
 @Preview(showBackground = true, widthDp = 411, heightDp = 891, name = "Mobile · Detail – Appearance")
 @Composable
 private fun SettingScreenMobileDetailPreview() {
-    MaterialTheme {
-        CompositionLocalProvider(LocalSettingVM provides SettingSurfaceImpl(SettingViewModel())) {
+    CompositionLocalProvider(LocalSettingVM provides remember { SettingViewModel() }) {
+        MaterialTheme {
             SettingScreen(initialSelected = SettingInfo.APPEARANCE)
         }
     }
@@ -427,8 +426,8 @@ private fun SettingScreenMobileDetailPreview() {
 @Preview(showBackground = true, widthDp = 1280, heightDp = 800, name = "Desktop · With Currency Selection")
 @Composable
 private fun SettingScreenDesktopDetailPreview() {
-    MaterialTheme {
-        CompositionLocalProvider(LocalSettingVM provides SettingSurfaceImpl(SettingViewModel())) {
+    CompositionLocalProvider(LocalSettingVM provides remember { SettingViewModel() }) {
+        MaterialTheme {
             SettingScreen(initialSelected = SettingInfo.CURRENCY)
         }
     }

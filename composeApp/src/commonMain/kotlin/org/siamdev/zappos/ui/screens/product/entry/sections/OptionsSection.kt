@@ -25,35 +25,35 @@ import org.siamdev.zappos.ui.components.common.EntryChip
 import org.siamdev.zappos.ui.components.common.EntryField
 import org.siamdev.zappos.ui.components.common.SectionCard
 import org.siamdev.zappos.ui.components.common.TextIconButton
-import org.siamdev.zappos.ui.screens.product.entry.MasterEntrySurface
 import org.siamdev.zappos.ui.screens.product.entry.OptionGroup
 import org.siamdev.zappos.ui.screens.product.entry.OptionItem
 import org.siamdev.zappos.ui.screens.product.entry.PickMode
-import org.siamdev.zappos.ui.screens.product.entry.rememberEntryFormState
+import org.siamdev.zappos.ui.screens.product.entry.EntryFormEdit
+import org.siamdev.zappos.ui.screens.product.entry.MasterEntryViewModel
+import org.siamdev.zappos.ui.screens.product.entry.PreviewEntryForm
 
 @Composable
-internal fun OptionsSection(state: MasterEntrySurface) {
+internal fun OptionsSection(form: MasterEntryViewModel.State, onEdit: EntryFormEdit) {
     SectionCard(
         icon = Icons.Default.Add,
         title = "Options & add-ons",
         subtitle = "Choices and extras the customer picks at checkout",
         badge = "OPTIONAL",
     ) {
-        state.optionGroups.forEachIndexed { gi, group ->
+        form.options.forEachIndexed { gi, group ->
             OptionGroupCard(
                 group = group,
                 onUpdate = { updated ->
-                    state.optionGroups =
-                        state.optionGroups.toMutableList().also { it[gi] = updated }
+                    onEdit { copy(options = options.toMutableList().also { it[gi] = updated }) }
                 },
                 onDelete = {
-                    state.optionGroups = state.optionGroups.toMutableList().also { it.removeAt(gi) }
+                    onEdit { copy(options = options.toMutableList().also { it.removeAt(gi) }) }
                 },
             )
         }
 
         OutlinedButton(
-            onClick = { state.optionGroups += OptionGroup() },
+            onClick = { onEdit { copy(options = options + OptionGroup()) } },
             shape = RoundedCornerShape(10.dp),
             modifier = Modifier.fillMaxWidth(),
         ) {
@@ -187,26 +187,30 @@ private fun OptionGroupCard(
 @Preview(showBackground = true, widthDp = 411, name = "Options · empty")
 @Composable
 private fun OptionsSectionEmptyPreview() {
-    MaterialTheme { OptionsSection(rememberEntryFormState()) }
+    MaterialTheme {
+        PreviewEntryForm { form, onEdit ->
+            OptionsSection(form, onEdit)
+        }
+    }
 }
 
 @Preview(showBackground = true, widthDp = 411, name = "Options · with group")
 @Composable
 private fun OptionsSectionWithGroupPreview() {
     MaterialTheme {
-        OptionsSection(
-            rememberEntryFormState().also {
-                it.optionGroups =
-                    listOf(
-                        OptionGroup(
-                            name = "Size",
-                            items = listOf(
-                                OptionItem(name = "Small"),
-                                OptionItem(name = "Large", priceModifier = 20)
-                            ),
-                        )
-                    )
-            }
+        val initial = MasterEntryViewModel.State(
+            options = listOf(
+                OptionGroup(
+                    name = "Size",
+                    items = listOf(
+                        OptionItem(name = "Small"),
+                        OptionItem(name = "Large", priceModifier = 20)
+                    ),
+                )
+            )
         )
+        PreviewEntryForm(initial) { form, onEdit ->
+            OptionsSection(form, onEdit)
+        }
     }
 }
